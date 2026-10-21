@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0e0f14">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Chubby Chat 🌸</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet">
+  
+
+  <!-- Styles (load order matters: later files build on earlier ones) -->
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/chat-extras.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/messages.css">
+  <link rel="stylesheet" href="css/input.css">
+  <link rel="stylesheet" href="css/banners.css">
+</head>
+<body>
+
+
+<div id="install-banner">
+  <div class="install-text" id="install-text">Install Chubby Chat to your home screen for the best experience.</div>
+  <button class="install-btn" id="install-btn">Install</button>
+  <button class="close-install" id="close-install-btn">✕</button>
+</div>
+
+<div id="update-banner">
+  <span>✨ A new update is available!</span>
+  <button class="update-btn" id="apply-update-btn">Update Now</button>
+</div>
+
+<div id="lightbox">
+  <!-- Close button — top-LEFT, always visible -->
+  <span id="lightbox-close" onclick="window.closeLightbox()"
+    style="position:absolute;top:16px;left:16px;z-index:1002;
+           background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.25);
+           color:#fff;font-size:20px;width:44px;height:44px;display:flex;
+           align-items:center;justify-content:center;border-radius:50%;
+           cursor:pointer;backdrop-filter:blur(8px);">✕</span>
+  <!-- Action buttons — top-RIGHT -->
+  <div id="lightbox-actions" style="position:absolute;top:16px;right:16px;display:flex;gap:8px;z-index:1001;">
+    <button id="lightbox-edit-btn" onclick="window.lightboxEditImage()" style="display:none;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:14px;font-weight:600;padding:8px 14px;border-radius:20px;cursor:pointer;backdrop-filter:blur(8px);">✏️ Edit</button>
+    <button id="lightbox-download-btn" onclick="window.lightboxDownload()" style="display:none;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:14px;padding:8px 14px;border-radius:20px;cursor:pointer;backdrop-filter:blur(8px);">⬇️</button>
+  </div>
+  <div id="lightbox-body"></div>
+</div>
+
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">
+  <img src="/icon-192.png" alt="logo" style="width:80px;height:80px;border-radius:22px;object-fit:cover;">
+</div>
+      <div>
+        <div class="login-logo-text">Chubby Chat</div>
+        <div class="login-logo-sub">My Tsabby-Tsabs 🌸</div>
+      </div>
+    </div>
+    <div class="login-input-wrap">
+      <label class="login-label">Email</label>
+      <input type="email" id="email" class="login-input" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="login-input-wrap">
+      <label class="login-label">Password</label>
+      <input type="password" id="password" class="login-input" placeholder="••••••••" autocomplete="current-password">
+      <span class="forgot-password" id="forgot-password-btn">Forgot Password?</span>
+    </div>
+    <button id="login-btn" class="btn-primary">Sign In</button>
+    <p id="login-error"></p>
+  </div>
+</div>
+
+<div id="chat-ui">
+  <div id="sidebar">
+    <div id="sidebar-header" style="display: flex; align-items: center; gap: 12px; padding: 20px;">
+      <img src="./icon-192.png" alt="logo" style="width:36px; height:36px; border-radius:10px; object-fit:cover;">
+      <div class="sidebar-title" style="font-weight: 600; font-size: 18px;">Chubby Chat</div>
+    </div>
+
+    <div id="sidebar-body">
+      <div class="sidebar-user-card" id="sidebar-user-card" onclick="document.getElementById('settings-toggle-btn').click()">
+        <div class="sidebar-user-avatar" id="sidebar-avatar">👤</div>
+        <div class="sidebar-user-info">
+          <div class="sidebar-user-name" id="sidebar-name">–</div>
+          <div class="sidebar-user-sub">View Profile</div>
+        </div>
+      </div>
+      
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">Chat</div>
+      
+      <button class="sidebar-btn" id="sidebar-saved-btn">
+        <span class="sb-icon">⚡</span> Quick Replies
+      </button>
+      
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-label">Appearance</div>
+      
+      <button class="sidebar-btn" id="sidebar-theme-btn">
+        <span class="sb-icon" id="sidebar-theme-icon">🌙</span>
+        <span id="sidebar-theme-label">Dark Pink</span>
+      </button>
+    </div>
+
+    <div id="sidebar-footer">
+      <button class="sidebar-btn danger" id="sidebar-logout-btn">
+        <span class="sb-icon">🌸</span> Sign Out
+      </button>
+    </div>
+  </div>
+
+  <div id="chat-column">
+
+    <div id="settings-panel">
+      <div class="settings-header">
+        <button class="icon-btn" id="close-settings-btn">←</button>
+        <div class="settings-title">Profile & Settings</div>
+      </div>
+<div class="settings-body">
+        
+        <div class="avatar-upload-wrap" style="margin-bottom: 12px;">
+          <div class="avatar-upload-preview" id="avatar-preview-wrap">
+            <span id="avatar-preview-emoji">👤</span>
+            <img id="avatar-preview-img" src="" alt="" style="display:none;">
+            <input type="file" id="avatar-file-input" accept="image/*">
+          </div>
+          <div class="avatar-upload-hint">Tap to upload a profile photo</div>
+          <div class="avatar-upload-progress" id="avatar-progress"><span class="loader"></span> Uploading…</div>
+        </div>
+
+        <div class="settings-input-wrap">
+          <label class="settings-label">Display Name</label>
+          <input type="text" id="profile-nickname" class="settings-input" placeholder="Your name">
+        </div>
+        <div class="settings-input-wrap">
+          <label class="settings-label">Photo URL or Emoji (optional)</label>
+          <input type="text" id="profile-photo" class="settings-input" placeholder="https://... or 👻">
+        </div>
+        <button id="save-profile-btn" class="btn-save">Save Changes</button>
+        <p id="settings-status"></p>
+
+        <div class="sidebar-divider" style="margin:24px 0;"></div>
+
+        <label class="settings-label">Appearance</label>
+        <div class="theme-toggle-row">
+          <div class="theme-toggle-label"><span>🌸</span> Light Pink Mode</div>
+          <label class="toggle-switch"><input type="checkbox" id="theme-checkbox"><span class="toggle-track"></span></label>
+        </div>
+
+        <label class="settings-label" style="margin-top:8px;">Notifications</label>
+        <div class="theme-toggle-row" style="margin-bottom:24px;">
+          <div class="theme-toggle-label"><span>🔔</span> Push Notifications</div>
+          <button id="notif-permission-btn" class="btn-save" style="padding:8px 16px;font-size:13px;">Enable</button>
+        </div>
+
+        <div class="sidebar-divider" style="margin:24px 0;"></div>
+
+<label class="settings-label" style="margin-top:4px;">💅 Chat Background</label>
+        <div class="bg-upload-wrap">
+          <div class="bg-preview-label">Upload a custom background image</div>
+          <div class="bg-preview-box" id="bg-preview-box" onclick="triggerNativeBackgroundPicker()" style="cursor: pointer;">
+            <img id="bg-preview-img" src="" alt="" style="display:none;">
+            <span id="bg-preview-placeholder">🌸 Tap to choose image</span>
+          </div>
+          <div class="bg-action-row">
+            <button class="bg-remove-btn" id="bg-remove-btn" onclick="removeGlobalBackground()">Remove Background</button>
+          </div>
+          <div class="bg-overlay-row">
+            <span>Darken</span>
+            <input type="range" class="bg-overlay-slider" id="bg-overlay-slider" min="0" max="80" value="0">
+            <span id="bg-overlay-val">0%</span>
+          </div>
+        </div>
+
+        <div class="sidebar-divider" style="margin:24px 0;"></div>
+
+        <label class="settings-label">⚡ Saved Quick Replies</label>
+        <div class="saved-replies-list" id="settings-saved-list"></div>
+        <div class="add-saved-reply-wrap">
+          <input type="text" id="new-saved-reply-input" class="add-saved-reply-input" placeholder="Type a saved reply…">
+          <button id="add-saved-reply-btn" class="add-saved-reply-btn">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="header">
+      <div class="header-avatar" id="partner-avatar">🌸</div>
+      <div class="header-info">
+        <div class="header-name" id="header-name">Chat</div>
+        <div id="status-indicator"><span class="dot"></span><span class="status-text">Offline</span></div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="search-toggle-btn" title="Search">🔍</button>
+        <button class="icon-btn header-mobile-only" id="theme-toggle-btn" title="Toggle theme">🌙</button>
+        <button class="icon-btn" id="settings-toggle-btn" title="Profile">⚙️</button>
+        <button class="icon-btn danger header-mobile-only" id="logout-btn" title="Logout">🛑</button>
+      </div>
+    </div>
+
+    <div id="search-panel" style="display:none; position:absolute; top:70px; right:20px; width:320px; max-width:90vw; max-height:400px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow); z-index:999; padding:16px; flex-direction:column; gap:10px;">
+      <div style="font-size:14px; font-weight:600; color:var(--text-muted); margin-bottom:4px;">Search Chat History</div>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="search-input" placeholder="Search messages…" style="flex:1; padding:10px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text-primary); font-family:var(--font); outline:none;">
+        <button id="search-go-btn" style="padding:10px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; flex-shrink:0; transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Search</button>
+      </div>
+      <div id="search-results" style="overflow-y:auto; max-height:280px; display:flex; flex-direction:column; gap:8px; margin-top:4px;"></div>
+    </div>
+
+    <div id="chat-window"></div>
+
+    <div id="typing-indicator">
+      <div class="typing-bubble">
+        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+      </div>
+    </div>
+
+    <div id="status-text"></div>
+
+    <div id="input-area">
+<div id="reply-banner">
+        <img id="reply-banner-media" class="reply-banner-media" src="">
+        <div class="reply-banner-text">Replying to <b id="reply-to-name"></b>: <span id="reply-to-text"></span></div>
+        <button id="cancel-reply-btn">✕</button>
+      </div>
+
+      <div id="edit-banner">✏️ Editing message <button id="cancel-edit-btn">✕</button></div>
+
+      <div class="emoji-picker-panel" id="emoji-panel"></div>
+
+      <div class="gif-panel" id="gif-panel">
+        <div class="gif-search-wrap">
+          <input type="text" class="gif-search-input" id="gif-search-input" placeholder="Search GIFs…">
+          <button class="gif-search-btn" id="gif-search-btn">Search</button>
+        </div>
+        <div class="gif-grid" id="gif-grid"><div class="gif-loading">Search for GIFs above</div></div>
+        <div class="gif-powered">Powered by GIPHY</div>
+      </div>
+
+      <div class="saved-replies-panel" id="saved-replies-panel">
+        <div class="saved-replies-panel-title">⚡ Quick Replies</div>
+        <div class="saved-replies-scroll" id="saved-replies-scroll"></div>
+        <div class="add-saved-reply-wrap" style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px;">
+          <input type="text" id="chat-add-reply-input" class="add-saved-reply-input" placeholder="Save a new reply…">
+          <button id="chat-add-reply-btn" class="add-saved-reply-btn">Save</button>
+        </div>
+      </div>
+
+      <div id="attachments-gallery"></div>
+
+<div id="input-bar">
+        <button id="expand-btn" title="More">+</button>
+
+        <div id="action-buttons-wrapper">
+          <button class="input-action-btn" id="emoji-btn" title="Emoji">😊</button>
+          <button class="input-action-btn" id="gif-btn" title="GIF" style="font-size:13px;font-weight:700;">GIF</button>
+          <button class="input-action-btn" id="saved-btn" title="Quick Replies">⚡</button>
+          <div class="input-action-btn" title="Take Photo">
+  📷<input type="file" id="native-photo-upload" accept="image/*" capture="environment">
+</div>
+
+<div class="input-action-btn" title="Record Video">
+  🎥<input type="file" id="native-video-upload" accept="video/*" capture="environment">
+</div>
+          <div class="input-action-btn" title="Attach file">
+            📎<input type="file" id="media-upload" accept="image/*,video/*" multiple>
+          </div>
+        </div>
+
+        <div class="input-field-wrap">
+          <textarea id="message-input" placeholder="Message…" rows="1"></textarea>
+        </div>
+        <button id="send-btn" title="Send">➤</button>
+      </div>
+    </div>
+
+
+
+
+<div id="debug-console" style="position: fixed; top: 0; left: 0; width: 100%; max-height: 40%; background: rgba(0,0,0,0.85); color: #ff4444; z-index: 9999; overflow-y: auto; font-family: monospace; font-size: 14px; padding: 10px; display: none; border-bottom: 3px solid #ff4444;">
+  <strong style="color: white;">System Log:</strong><br>
+</div>
+
+
+<!-- Scripts -->
+<script src="js/debug-console.js"></script>
+<script src="paint-editor.js"></script>
+<script type="module" src="js/main.js"></script>
+<script type="module" src="chat.js"></script>
+
+</body>
+</html>

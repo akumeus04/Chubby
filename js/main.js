@@ -1,0 +1,22 @@
+// Entry point — loads every feature module (each registers its own listeners).
+import "./firebase.js";
+import "./helpers.js";
+import "./background.js";
+import "./emoji.js";
+import "./gif.js";
+import "./saved-replies.js";
+import "./message-actions.js";
+import "./input-bar.js";
+import "./attachments.js";
+import "./image-editor.js";
+import "./lightbox.js";
+import "./auth.js";
+import "./presence.js";
+import "./notifications.js";
+import "./settings.js";
+import "./theme.js";
+import "./formatter.js";
+import "./media.js";
+import "./chat-send.js";
+import "./pwa.js";
+import "./native-media.js";

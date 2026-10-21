@@ -1,0 +1,61 @@
+/* Reset, colour tokens, dark & light themes */
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+	
+	/* Makes the background preview box show the darkening effect */
+.bg-preview-box::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--chat-bg-overlay, transparent);
+  pointer-events: none;
+}
+
+    :root {
+      /* ── DARK PINK THEME (default) ── */
+      --bg:            #1a0d12;
+      --surface:       #261318;
+      --surface2:      #321820;
+      --surface3:      #3e2028;
+      --border:        rgba(255,180,200,0.10);
+      --accent:        #e8407a;
+      --accent-dim:    rgba(232,64,122,0.18);
+      --accent-glow:   rgba(232,64,122,0.40);
+      --my-bubble:     #c93070;
+      --their-bubble:  #321820;
+      --text-primary:  #fce4ec;
+      --text-secondary:#d4879f;
+      --text-muted:    #8a5068;
+      --online:        #4cdb8e;
+      --idle:          #f5a623;
+      --danger:        #ff5c7a;
+      --radius-lg:     18px;
+      --radius-md:     12px;
+      --radius-sm:     8px;
+      --shadow:        0 8px 32px rgba(0,0,0,0.50);
+      --font:          'DM Sans', sans-serif;
+      --sidebar-w:     280px;
+      --chat-bg-image: none;
+    }
+
+    /* ── LIGHT PINK THEME ── */
+    [data-theme="light"] {
+      --bg:            #fff0f5;
+      --surface:       #ffffff;
+      --surface2:      #fce8ef;
+      --surface3:      #f8d0de;
+      --border:        rgba(220,80,130,0.14);
+      --accent:        #d63070;
+      --accent-dim:    rgba(214,48,112,0.12);
+      --accent-glow:   rgba(214,48,112,0.28);
+      --my-bubble:     #d63070;
+      --their-bubble:  #ffffff;
+      --text-primary:  #3d0a20;
+      --text-secondary:#8b3558;
+      --text-muted:    #b87090;
+      --online:        #22c55e;
+      --danger:        #ef4444;
+      --shadow:        0 4px 24px rgba(180,40,90,0.13);
+    }
+	
+	
+	
