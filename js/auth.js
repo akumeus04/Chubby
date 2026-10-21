@@ -114,12 +114,9 @@ onAuthStateChanged(auth, user => {
     buildEmojiPicker();
     renderSavedRepliesSettings();
     
-    // Fallback loadChat call to avoid script crash if chat.js is slow or decoupled
-    try { 
-      if (typeof window.loadChat === "function") window.loadChat();
-      else if (typeof loadChat === "function") loadChat();
-    } catch(e) {}
-    
+    // chat.js is a separate module; if it hasn't finished loading yet, wait for it.
+    startChatWhenReady();
+
     applyTheme(localStorage.getItem("messenger-theme") === "light");
 	
 // Trigger the Native notification prompt!
@@ -134,3 +131,13 @@ setupNativeNotifications(user);
     document.getElementById("login-btn").textContent = "Sign In";
   }
 });
+
+function startChatWhenReady(tries = 0) {
+  if (typeof window.loadChat === "function") {
+    try { window.loadChat(); } catch (e) { console.error("loadChat failed:", e); }
+  } else if (tries < 100) {
+    setTimeout(() => startChatWhenReady(tries + 1), 100);   // retry for up to ~10s
+  } else {
+    console.error("chat.js did not load - messages cannot be shown.");
+  }
+}

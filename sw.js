@@ -13,13 +13,45 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// 3. CACHE SETTINGS (Bumped to v3.5 to force update!)
-const CACHE_NAME = 'chubby-chat-v3.5'; 
+// 3. CACHE SETTINGS (Bumped to v4.0 for the split-file layout)
+const CACHE_NAME = 'chubby-chat-v4.0';
 const URLS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
-  './chat.js' 
+  './chat.js',
+  './paint-editor.js',
+  './css/themes.css',
+  './css/chat-extras.css',
+  './css/layout.css',
+  './css/messages.css',
+  './css/input.css',
+  './css/banners.css',
+  './js/main.js',
+  './js/config.js',
+  './js/state.js',
+  './js/firebase.js',
+  './js/helpers.js',
+  './js/background.js',
+  './js/emoji.js',
+  './js/gif.js',
+  './js/saved-replies.js',
+  './js/message-actions.js',
+  './js/input-bar.js',
+  './js/attachments.js',
+  './js/image-editor.js',
+  './js/lightbox.js',
+  './js/auth.js',
+  './js/presence.js',
+  './js/notifications.js',
+  './js/settings.js',
+  './js/theme.js',
+  './js/formatter.js',
+  './js/media.js',
+  './js/chat-send.js',
+  './js/pwa.js',
+  './js/native-media.js',
+  './js/debug-console.js'
 ];
 
 // 4. BACKGROUND NOTIFICATION HANDLER

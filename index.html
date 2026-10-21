@@ -55,7 +55,7 @@
   <div class="login-card">
     <div class="login-logo">
       <div class="login-logo-icon">
-  <img src="/icon-192.png" alt="logo" style="width:80px;height:80px;border-radius:22px;object-fit:cover;">
+  <img src="./icon-192.png" alt="logo" style="width:80px;height:80px;border-radius:22px;object-fit:cover;">
 </div>
       <div>
         <div class="login-logo-text">Chubby Chat</div>
@@ -288,6 +288,14 @@
 
 
 <!-- Scripts -->
+<script>
+  // Friendly warning: ES modules (js/main.js) cannot load from file:// — serve the folder over http(s).
+  if (location.protocol === 'file:') {
+    document.body.insertAdjacentHTML('afterbegin',
+      '<div style="position:fixed;inset:0;z-index:99999;background:#1a0d12;color:#fce4ech;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif">' +
+      '<div><h2>Open this app through a web server</h2><p style="margin-top:12px;opacity:.8">Browsers block JavaScript modules on file:// pages, so login cannot work.<br>Run <code>python -m http.server</code> in this folder and open <code>http://localhost:8000</code>, or upload the folder to your hosting.</p></div></div>');
+  }
+</script>
 <script src="js/debug-console.js"></script>
 <script src="paint-editor.js"></script>
 <script type="module" src="js/main.js"></script>
