@@ -44,7 +44,7 @@ document.getElementById("cancel-reply-btn").addEventListener("click", () => {
 // ── SEND MESSAGE ──────────────────────────────────────────
 document.getElementById("send-btn").addEventListener("click", async () => {
   const textVal = msgInput.value.trim();
-  const filesToSend = [...selectedFiles]; // Make a copy of the selected files array
+  const filesToSend = [...state.selectedFiles]; // Make a copy of the selected files array
   const statusEl = document.getElementById("status-text");
   
   if (!textVal && filesToSend.length === 0) return;
