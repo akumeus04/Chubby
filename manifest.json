@@ -1,7 +1,7 @@
 {
   "name": "Chubby Chat",
   "short_name": "Chubby Chat",
-  "start_url": "/index.html", 
+  "start_url": "/Chubby", 
   "display": "standalone",
   "background_color": "#0e0f14",
   "theme_color": "#0e0f14",
