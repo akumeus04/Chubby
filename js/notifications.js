@@ -71,26 +71,33 @@ export async function notifyPartner(body, title) {
 
 // ── Save / test (Settings screen) ────────────────────────
 async function saveKey(raw, { quiet } = {}) {
-  const key = (raw || "").trim();
-  // 1. Grab the selected sound from the dropdown menu
+  let key = (raw || "").trim();
   const sound = $("pushover-sound-select") ? $("pushover-sound-select").value : "pushover"; 
-  
+
+  // If the input is empty but we already have a saved key, preserve the existing key!
+  if (!key && myKey) {
+    key = myKey;
+  }
+
   if (!state.currentUser) return false;
-  if (key && !KEY_RE.test(key)) { setStatus("That doesn't look right — a Pushover User Key is 30 letters/numbers (shown on pushover.net's dashboard).", "bad"); return false; }
-  
+  if (key && !KEY_RE.test(key)) { 
+    setStatus("That doesn't look right — a Pushover User Key is 30 letters/numbers (shown on pushover.net's dashboard).", "bad"); 
+    return false; 
+  }
+
   try {
-    // 2. Save BOTH the key and the sound to Firebase
+    // Save both the key and sound to Firestore
     await setDoc(doc(db, "fcm_tokens", state.currentUser.uid), { 
       pushoverUserKey: key, 
       pushoverSound: sound, 
       pushoverUpdated: serverTimestamp() 
     }, { merge: true });
-    
+
     myKey = key;
-    mySound = sound; // 3. Update local state
-    window.chubbyPushReady = !!key;                         // tells chat.js not to show a second local notification
+    mySound = sound;
+    window.chubbyPushReady = !!key;
     refreshUI();
-    
+
     if (!quiet) setStatus(key ? "Saved ✓ — tap “Send test” to check your phone." : "Pushover turned off.", key ? "ok" : "");
     return true;
   } catch (e) {
@@ -124,10 +131,26 @@ function refreshUI() {
   }
 }
 
-$("pushover-save-btn").addEventListener("click", () => { $("notif-status").dataset.auto = ""; saveKey($("pushover-key-input").value); });
-$("pushover-key-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pushover-save-btn").click(); });
-$("pushover-test-btn").addEventListener("click", () => { $("notif-status").dataset.auto = ""; sendTest(); });
-$("pushover-clear-btn").addEventListener("click", () => { $("notif-status").dataset.auto = ""; saveKey(""); });
+$("pushover-save-btn").addEventListener("click", () => { 
+  $("notif-status").dataset.auto = ""; 
+  saveKey($("pushover-key-input").value); 
+});
+
+$("pushover-key-input").addEventListener("keydown", (e) => { 
+  if (e.key === "Enter") $("pushover-save-btn").click(); 
+});
+
+$("pushover-test-btn").addEventListener("click", () => { 
+  $("notif-status").dataset.auto = ""; 
+  sendTest(); 
+});
+
+$("pushover-clear-btn").addEventListener("click", () => { 
+  $("notif-status").dataset.auto = ""; 
+  myKey = ""; // Explicitly reset local key
+  if ($("pushover-sound-select")) $("pushover-sound-select").value = "pushover";
+  saveKey(""); // Clears key in Firestore
+});
 
 // ── Friendly first-run prompt ────────────────────────────
 let promptShown = false;
