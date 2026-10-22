@@ -1,8 +1,7 @@
 import { closeAllPanels } from "./helpers.js";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-// 🚨 Update these two import paths to match exactly where your files are located!
-import { db } from "./firebase-init.js"; 
-import { state } from "./state.js";      
+import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { db } from "./firebase.js"; 
+import { state } from "./state.js"; 
 
 // Local cache to keep the UI feeling instant
 let currentReplies = [];
