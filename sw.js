@@ -14,7 +14,7 @@ firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
 // 3. CACHE SETTINGS (Bumped to v4.0 for the split-file layout)
-const CACHE_NAME = 'chubby-chat-v4.0';
+const CACHE_NAME = 'chubby-chat-v4.1';
 const URLS_TO_CACHE = [
   './',
   './index.html',
@@ -27,6 +27,7 @@ const URLS_TO_CACHE = [
   './css/messages.css',
   './css/input.css',
   './css/banners.css',
+  './css/revamp.css',
   './js/main.js',
   './js/config.js',
   './js/state.js',
@@ -51,6 +52,7 @@ const URLS_TO_CACHE = [
   './js/chat-send.js',
   './js/pwa.js',
   './js/native-media.js',
+  './js/viewport.js',
   './js/debug-console.js'
 ];
 
