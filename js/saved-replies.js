@@ -6,6 +6,11 @@ import { state } from "./state.js";
 // Local cache to keep the UI feeling instant
 let currentReplies = [];
 
+// ADD THIS MISSING FUNCTION BACK:
+export function getSavedReplies() {
+  return currentReplies;
+}
+
 // ── SAVED REPLIES ─────────────────────────────────────────
 
 // 1. Fetch replies from Firebase (and migrate old local ones if needed)
