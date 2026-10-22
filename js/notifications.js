@@ -13,6 +13,7 @@ const KEY_RE = /^[A-Za-z0-9]{30}$/;          // Pushover user/group keys are 30 
 const appUrl = () => new URL("./", location.href).href;
 const $ = (id) => document.getElementById(id);
 let myKey = "";                              // this user's saved Pushover key
+let mySound = "pushover";
 
 function maskKey(k) { return k ? k.slice(0, 3) + "••••••••••••••••••••••" + k.slice(-3) : ""; }
 function setStatus(text, kind) {
@@ -22,7 +23,7 @@ function setStatus(text, kind) {
 }
 
 // ── Talk to Apps Script ──────────────────────────────────
-async function callPushover(userKey, title, message) {
+async function callPushover(userKey, title, message, sound) {
   const res = await fetch(appsScriptUrl, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -32,6 +33,7 @@ async function callPushover(userKey, title, message) {
       userKey,
       title: title || (state.currentUser && state.currentUser.displayName) || "Partner",
       message,
+      sound: sound || "pushover", // Pass the sound!
       url: appUrl()
     })
   });
@@ -42,12 +44,23 @@ async function callPushover(userKey, title, message) {
 export async function notifyPartner(body, title) {
   if (!state.currentUser || !appsScriptUrl) return;
   try {
+    // 1. Get all tokens from the database
     const snap = await getDocs(collection(db, "fcm_tokens"));
+    
+    // 2. Loop through them
     snap.forEach(d => {
+      // 3. Skip our own ID so we don't ping ourselves
       if (d.id === state.currentUser.uid) return;
-      const key = (d.data() || {}).pushoverUserKey;
-      if (!key) return;                                      // partner hasn't set Pushover up yet
-      callPushover(key, title, body)
+      
+      // 4. Extract the partner's data and sound preference
+      const data = d.data() || {};
+      const key = data.pushoverUserKey;
+      const sound = data.pushoverSound || "pushover";
+      
+      if (!key) return; // Partner hasn't set Pushover up yet
+      
+      // 5. Send the ping with the custom sound!
+      callPushover(key, title, body, sound)
         .then(r => { if (r && r.status !== "success") console.error("Pushover error:", r.message); })
         .catch(e => console.error("Pushover ping error:", e));
     });
@@ -59,13 +72,25 @@ export async function notifyPartner(body, title) {
 // ── Save / test (Settings screen) ────────────────────────
 async function saveKey(raw, { quiet } = {}) {
   const key = (raw || "").trim();
+  // 1. Grab the selected sound from the dropdown menu
+  const sound = $("pushover-sound-select") ? $("pushover-sound-select").value : "pushover"; 
+  
   if (!state.currentUser) return false;
   if (key && !KEY_RE.test(key)) { setStatus("That doesn't look right — a Pushover User Key is 30 letters/numbers (shown on pushover.net's dashboard).", "bad"); return false; }
+  
   try {
-    await setDoc(doc(db, "fcm_tokens", state.currentUser.uid), { pushoverUserKey: key, pushoverUpdated: serverTimestamp() }, { merge: true });
+    // 2. Save BOTH the key and the sound to Firebase
+    await setDoc(doc(db, "fcm_tokens", state.currentUser.uid), { 
+      pushoverUserKey: key, 
+      pushoverSound: sound, 
+      pushoverUpdated: serverTimestamp() 
+    }, { merge: true });
+    
     myKey = key;
+    mySound = sound; // 3. Update local state
     window.chubbyPushReady = !!key;                         // tells chat.js not to show a second local notification
     refreshUI();
+    
     if (!quiet) setStatus(key ? "Saved ✓ — tap “Send test” to check your phone." : "Pushover turned off.", key ? "ok" : "");
     return true;
   } catch (e) {
@@ -79,7 +104,7 @@ async function sendTest() {
   if (!myKey) { setStatus("Save your User Key first.", "bad"); return; }
   setStatus("Sending test…");
   try {
-    const r = await callPushover(myKey, "Chubby Chat 🌸", "Pushover is connected! You'll get pings like this when your partner messages you 💕");
+    const r = await callPushover(myKey, "Chubby Chat 🌸", "Pushover is connected! You'll get pings like this when your partner messages you 💕", mySound);
     if (r && r.status === "success") setStatus("Test sent ✓ — check your phone's Pushover notification.", "ok");
     else setStatus("Pushover said: " + ((r && r.message) || "unknown error") + " — check the User Key and your Apps Script setup.", "bad");
   } catch (e) {
@@ -140,6 +165,8 @@ export async function initNotifications(user) {
   try {
     const snap = await getDoc(doc(db, "fcm_tokens", user.uid));
     myKey = (snap.exists() && snap.data().pushoverUserKey) || "";
+	mySound = (snap.exists() && snap.data().pushoverSound) || "pushover";
+	if ($("pushover-sound-select")) $("pushover-sound-select").value = mySound; // Set dropdown on load
   } catch (e) { console.error("Could not load Pushover key:", e); }
   window.chubbyPushReady = !!myKey;
   $("notif-status").dataset.auto = "1"; $("notif-status").textContent = "";
