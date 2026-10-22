@@ -1,220 +1,113 @@
-// Push notifications (Android Chrome / installed app via Firebase Cloud Messaging), sound and in-app banner
-import { serverTimestamp, doc, setDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { getMessaging, getToken, isSupported } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging.js";
-import { app, db } from "./firebase.js";
-import { appsScriptUrl, VAPID_KEY } from "./config.js";
+// Notifications via Pushover (User Key), plus in-app sound and banner.
+//
+// How it works:
+//   • Each person pastes their own Pushover USER KEY in Settings. It is saved in Firestore (fcm_tokens/{uid}.pushoverUserKey).
+//   • When you send a message, this site asks your Google Apps Script to call Pushover for your PARTNER's user key.
+//   • The Pushover API TOKEN lives only inside Apps Script (Script Properties) — never in this public website code.
+import { serverTimestamp, doc, setDoc, getDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { db } from "./firebase.js";
+import { appsScriptUrl } from "./config.js";
 import { state } from "./state.js";
 
-const isNative = () => !!(window.Capacitor && Capacitor.getPlatform && Capacitor.getPlatform() !== 'web');
-let lastResult = null;       // result of the latest registration attempt
-let promptShown = false;
-
-// ── NOTIFICATIONS (FULL NATIVE) ───────────────────────────
-export async function setupNativeNotifications(user) {
-  if (!user) return;
-
-  // 1. Check if we are running on a Native Phone (Capacitor)
-  if (window.Capacitor && Capacitor.getPlatform() !== 'web') {
-    try {
-      // 2. Request Android System Permissions
-      let permStatus = await window.Capacitor.Plugins.PushNotifications.checkPermissions();
-      if (permStatus.receive === 'prompt') {
-        permStatus = await window.Capacitor.Plugins.PushNotifications.requestPermissions();
-      }
-
-      if (permStatus.receive === 'granted') {
-        console.log('Native notification permission granted!');
-
-        await window.Capacitor.Plugins.PushNotifications.createChannel({
-          id: 'fcm_default_channel',
-          name: 'Default',
-          description: 'General Notifications',
-          importance: 5,
-          visibility: 1
-        });
-
-        await window.Capacitor.Plugins.PushNotifications.register();
-
-        await window.Capacitor.Plugins.PushNotifications.addListener('registration', async (token) => {
-          console.log('Native Device Token:', token.value);
-          
-          const userTokenRef = doc(db, "fcm_tokens", user.uid);
-          await setDoc(userTokenRef, {
-            token: token.value,
-            lastUpdated: serverTimestamp()
-          });
-        });
-
-      } else {
-        console.log('User denied native push permissions.');
-      }
-    } catch (error) {
-      console.error('Error setting up native push:', error);
-    }
-  } else {
-    console.log("Running in Chrome Browser - Native Push skipped.");
-  }
-}
-
-
-
-// ── WEB PUSH (Android Chrome / installed PWA) ─────────────
-function getDeviceId() {
-  let id = localStorage.getItem("chubby-device-id");
-  if (!id) {
-    id = ((crypto.randomUUID && crypto.randomUUID()) || (Date.now() + Math.random().toString(36))).replace(/[^a-z0-9]/gi, "").slice(0, 16);
-    localStorage.setItem("chubby-device-id", id);
-  }
-  return id;
-}
-function deviceLabel() {
-  const ua = navigator.userAgent;
-  const os = /Android/i.test(ua) ? "Android" : /iPhone|iPad/i.test(ua) ? "iOS" : /Windows/i.test(ua) ? "Windows" : /Mac/i.test(ua) ? "Mac" : "Web";
-  const standalone = window.matchMedia("(display-mode: standalone)").matches ? " (app)" : "";
-  return os + standalone;
-}
+const KEY_RE = /^[A-Za-z0-9]{30}$/;          // Pushover user/group keys are 30 letters+digits
 const appUrl = () => new URL("./", location.href).href;
+const $ = (id) => document.getElementById(id);
+let myKey = "";                              // this user's saved Pushover key
 
-function getSwRegistration() {
-  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("Service worker not ready — is sw.js uploaded next to index.html?")), 12000));
-  return Promise.race([navigator.serviceWorker.ready, timeout]);
+function maskKey(k) { return k ? k.slice(0, 3) + "••••••••••••••••••••••" + k.slice(-3) : ""; }
+function setStatus(text, kind) {
+  const el = $("notif-status"); if (!el) return;
+  el.textContent = text;
+  el.style.color = kind === "ok" ? "var(--online)" : kind === "bad" ? "var(--danger)" : "var(--text-secondary)";
 }
 
-// Gets this phone's FCM token and saves it to Firestore so your partner's messages can reach it.
-export async function registerWebPush(user) {
-  if (!user) return { ok: false, reason: "no-user" };
-  if (isNative()) return { ok: false, reason: "native" };
-  if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) return { ok: false, reason: "unsupported" };
-  if (Notification.permission !== "granted") return { ok: false, reason: Notification.permission };
-  try {
-    if (!(await isSupported())) return { ok: false, reason: "unsupported" };
-    if (!state.messaging) state.messaging = getMessaging(app);
-    const reg = await getSwRegistration();
-    const token = await getToken(state.messaging, { serviceWorkerRegistration: reg, ...(VAPID_KEY ? { vapidKey: VAPID_KEY } : {}) });
-    if (!token) return { ok: false, reason: "no-token" };
-
-    // One entry per device, so your phone and your PC never overwrite each other.
-    await setDoc(doc(db, "fcm_tokens", user.uid), {
-      token,                                   // latest device (kept for older code / Apps Script)
-      devices: { [getDeviceId()]: { token, label: deviceLabel(), updated: serverTimestamp() } },
-      lastUpdated: serverTimestamp()
-    }, { merge: true });
-
-    localStorage.setItem("chubby-push-token", token);
-    window.chubbyPushReady = true;
-    return { ok: true, token };
-  } catch (err) {
-    console.error("Push registration failed:", err);
-    return { ok: false, reason: "error", error: err };
-  }
-}
-
-function tokensOf(data) {
-  const set = new Set();
-  if (data && data.token) set.add(data.token);
-  Object.values((data && data.devices) || {}).forEach(d => d && d.token && set.add(d.token));
-  return [...set];
-}
-
-function sendPush(token, title, body) {
-  return fetch(appsScriptUrl, {
+// ── Talk to Apps Script ──────────────────────────────────
+async function callPushover(userKey, title, message) {
+  const res = await fetch(appsScriptUrl, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
       secret: state.uploadSecret,
-      action: "notify",
-      targetToken: token,
+      action: "pushover",
+      userKey,
       title: title || (state.currentUser && state.currentUser.displayName) || "Partner",
-      body,
+      message,
       url: appUrl()
     })
   });
+  return res.json();           // { status: "success" } or { status: "error", message }
 }
 
-// Push a notification to every device of your partner (called after each message you send).
+// Send a Pushover notification to your partner's phone (called after every message you send).
 export async function notifyPartner(body, title) {
   if (!state.currentUser || !appsScriptUrl) return;
   try {
     const snap = await getDocs(collection(db, "fcm_tokens"));
     snap.forEach(d => {
       if (d.id === state.currentUser.uid) return;
-      tokensOf(d.data()).forEach(t => sendPush(t, title, body).catch(e => console.error("Apps Script Ping Error:", e)));
+      const key = (d.data() || {}).pushoverUserKey;
+      if (!key) return;                                      // partner hasn't set Pushover up yet
+      callPushover(key, title, body)
+        .then(r => { if (r && r.status !== "success") console.error("Pushover error:", r.message); })
+        .catch(e => console.error("Pushover ping error:", e));
     });
   } catch (e) {
-    console.error("Failed to fetch tokens for push:", e);
+    console.error("Failed to look up partner's Pushover key:", e);
   }
 }
 
-// Sends a notification to THIS phone so you can see it working.
-async function sendTestPush() {
-  const token = localStorage.getItem("chubby-push-token");
-  const status = document.getElementById("notif-status");
-  if (!token) { if (status) status.textContent = "Turn notifications on first."; return; }
+// ── Save / test (Settings screen) ────────────────────────
+async function saveKey(raw, { quiet } = {}) {
+  const key = (raw || "").trim();
+  if (!state.currentUser) return false;
+  if (key && !KEY_RE.test(key)) { setStatus("That doesn't look right — a Pushover User Key is 30 letters/numbers (shown on pushover.net's dashboard).", "bad"); return false; }
   try {
-    status.textContent = "Sending test…";
-    await sendPush(token, "Chubby Chat 🌸", "Notifications are working on this phone! 💕");
-    status.textContent = "Test sent — it should pop up in a few seconds. Switch to another app to see it.";
+    await setDoc(doc(db, "fcm_tokens", state.currentUser.uid), { pushoverUserKey: key, pushoverUpdated: serverTimestamp() }, { merge: true });
+    myKey = key;
+    window.chubbyPushReady = !!key;                         // tells chat.js not to show a second local notification
+    refreshUI();
+    if (!quiet) setStatus(key ? "Saved ✓ — tap “Send test” to check your phone." : "Pushover turned off.", key ? "ok" : "");
+    return true;
   } catch (e) {
-    status.textContent = "Couldn't send the test: " + (e && e.message ? e.message : e);
+    console.error("Could not save Pushover key:", e);
+    setStatus("Couldn't save the key (" + (e.message || e) + ").", "bad");
+    return false;
   }
 }
 
-// ── SETTINGS BUTTON + STATUS ──────────────────────────────
-function setStatus(text) { const el = document.getElementById("notif-status"); if (el) el.textContent = text; }
-
-function updateNotifBtn() {
-  const btn = document.getElementById("notif-permission-btn");
-  const test = document.getElementById("notif-test-btn");
-  if (!btn) return;
-  btn.style.background = "";
-  if (test) test.style.display = "none";
-
-  if (isNative() || !("Notification" in window) || !("PushManager" in window) || !("serviceWorker" in navigator)) {
-    btn.textContent = isNative() ? "App Handles Notifs" : "Not supported";
-    btn.disabled = true;
-    setStatus(isNative() ? "" : "This browser can't receive push. On Android, open the site in Chrome (or install it from the menu → Add to Home screen).");
-    return;
+async function sendTest() {
+  if (!myKey) { setStatus("Save your User Key first.", "bad"); return; }
+  setStatus("Sending test…");
+  try {
+    const r = await callPushover(myKey, "Chubby Chat 🌸", "Pushover is connected! You'll get pings like this when your partner messages you 💕");
+    if (r && r.status === "success") setStatus("Test sent ✓ — check your phone's Pushover notification.", "ok");
+    else setStatus("Pushover said: " + ((r && r.message) || "unknown error") + " — check the User Key and your Apps Script setup.", "bad");
+  } catch (e) {
+    setStatus("Couldn't reach Apps Script (" + (e.message || e) + "). Did you deploy a new version?", "bad");
   }
-  if (Notification.permission === "denied") {
-    btn.textContent = "Blocked"; btn.style.background = "var(--danger)"; btn.disabled = true;
-    setStatus("Blocked. On Android: tap the 🔒 next to the address bar → Permissions → Notifications → Allow, then reload.");
-    return;
-  }
-  if (Notification.permission === "granted") {
-    if (window.chubbyPushReady) {
-      btn.textContent = "✓ Enabled"; btn.style.background = "var(--online)"; btn.disabled = true;
-      setStatus("Connected to this " + deviceLabel() + " device 💕");
-      if (test) test.style.display = "";
-    } else {
-      btn.textContent = lastResult ? "Reconnect" : "Connecting…"; btn.disabled = false;
-      const why = lastResult && lastResult.error ? lastResult.error.message : (lastResult && lastResult.reason) || "";
-      setStatus(lastResult ? "Couldn't connect this device" + (why ? " (" + why + ")" : "") + ". Tap Reconnect." : "Connecting this device…");
-    }
-    return;
-  }
-  btn.textContent = "Enable"; btn.disabled = false;
-  setStatus("Get a ping on your phone whenever a new message arrives.");
 }
 
-async function enableFlow() {
-  if (!("Notification" in window)) return;
-  if (Notification.permission === "default") await Notification.requestPermission();
-  if (Notification.permission === "granted") {
-    setStatus("Connecting this device…");
-    lastResult = await registerWebPush(state.currentUser);
+function refreshUI() {
+  const input = $("pushover-key-input"), test = $("pushover-test-btn"), clear = $("pushover-clear-btn");
+  if (input && document.activeElement !== input) input.value = "";
+  if (input) input.placeholder = myKey ? "Saved: " + maskKey(myKey) : "Paste your 30-character User Key";
+  if (test) test.style.display = myKey ? "" : "none";
+  if (clear) clear.style.display = myKey ? "" : "none";
+  if (!$("notif-status").textContent || $("notif-status").dataset.auto === "1") {
+    $("notif-status").dataset.auto = "1";
+    setStatus(myKey ? "Connected to Pushover ✓ (" + maskKey(myKey) + ")" : "Install the Pushover app, then paste your User Key to get pings on your phone.", myKey ? "ok" : "");
   }
-  updateNotifBtn();
-  return lastResult;
 }
 
-document.getElementById("notif-permission-btn").addEventListener("click", enableFlow);
-const testBtn = document.getElementById("notif-test-btn");
-if (testBtn) testBtn.addEventListener("click", sendTestPush);
-updateNotifBtn();
+$("pushover-save-btn").addEventListener("click", () => { $("notif-status").dataset.auto = ""; saveKey($("pushover-key-input").value); });
+$("pushover-key-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pushover-save-btn").click(); });
+$("pushover-test-btn").addEventListener("click", () => { $("notif-status").dataset.auto = ""; sendTest(); });
+$("pushover-clear-btn").addEventListener("click", () => { $("notif-status").dataset.auto = ""; saveKey(""); });
 
-// Friendly one-time prompt (browsers only allow the permission popup after a tap)
-function showSoftPrompt() {
-  if (promptShown || document.getElementById("notif-soft-prompt")) return;
+// ── Friendly first-run prompt ────────────────────────────
+let promptShown = false;
+function showSetupPrompt() {
+  if (promptShown || myKey || $("notif-soft-prompt")) return;
   promptShown = true;
   const box = document.createElement("div");
   box.id = "notif-soft-prompt";
@@ -222,34 +115,39 @@ function showSoftPrompt() {
   box.innerHTML = `
     <div style="display:flex;gap:12px;align-items:center;">
       <div style="font-size:30px">🔔</div>
-      <div><div style="font-weight:800;font-size:15px">Never miss a message 💕</div>
-      <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">Turn on notifications to get a ping on this phone.</div></div>
+      <div><div style="font-weight:800;font-size:15px">Get pings on your phone 💕</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">Paste your Pushover User Key to get notified when a message arrives.</div></div>
     </div>
-    <div style="display:flex;gap:10px;margin-top:14px">
-      <button id="notif-soft-yes" style="flex:1;border:none;border-radius:14px;padding:12px;font-weight:800;font-size:14px;color:#fff;background:var(--my-bubble-bg);cursor:pointer">Turn on</button>
+    <input id="notif-soft-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="30-character User Key"
+      style="width:100%;margin-top:12px;padding:12px 14px;font-size:16px;border-radius:14px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text-primary);font-family:var(--font);outline:none;">
+    <div id="notif-soft-msg" style="font-size:12px;color:var(--danger);min-height:0;margin-top:6px"></div>
+    <div style="display:flex;gap:10px;margin-top:10px">
+      <button id="notif-soft-yes" style="flex:1;border:none;border-radius:14px;padding:12px;font-weight:800;font-size:14px;color:#fff;background:var(--my-bubble-bg);cursor:pointer">Save</button>
       <button id="notif-soft-no" style="flex:0 0 auto;border:1px solid var(--border);border-radius:14px;padding:12px 16px;font-weight:700;font-size:14px;color:var(--text-secondary);background:transparent;cursor:pointer">Not now</button>
     </div>`;
   document.body.appendChild(box);
-  document.getElementById("notif-soft-no").onclick = () => { localStorage.setItem("chubby-notif-dismissed", String(Date.now())); box.remove(); };
-  document.getElementById("notif-soft-yes").onclick = async () => {
-    box.remove();
-    const r = await enableFlow();
-    if (r && r.ok) showInAppBanner("Notifications on 🎉", "You'll get a ping when a message arrives.");
+  $("notif-soft-no").onclick = () => { localStorage.setItem("chubby-notif-dismissed", String(Date.now())); box.remove(); };
+  $("notif-soft-yes").onclick = async () => {
+    const v = $("notif-soft-key").value.trim();
+    if (!KEY_RE.test(v)) { $("notif-soft-msg").textContent = "A User Key is 30 letters/numbers."; return; }
+    if (await saveKey(v, { quiet: true })) { box.remove(); showInAppBanner("Pushover connected 🎉", "Open Settings → Notifications to send a test."); }
   };
 }
 
 // Called after login
-export function initNotifications(user) {
-  setupNativeNotifications(user);              // Capacitor Android-app path (unchanged)
-  if (isNative() || !("Notification" in window)) { updateNotifBtn(); return; }
-
-  if (Notification.permission === "granted") {
-    registerWebPush(user).then(r => { lastResult = r; updateNotifBtn(); });   // also refreshes the token each launch
-  } else if (Notification.permission === "default") {
+export async function initNotifications(user) {
+  if (!user) return;
+  try {
+    const snap = await getDoc(doc(db, "fcm_tokens", user.uid));
+    myKey = (snap.exists() && snap.data().pushoverUserKey) || "";
+  } catch (e) { console.error("Could not load Pushover key:", e); }
+  window.chubbyPushReady = !!myKey;
+  $("notif-status").dataset.auto = "1"; $("notif-status").textContent = "";
+  refreshUI();
+  if (!myKey) {
     const dismissed = Number(localStorage.getItem("chubby-notif-dismissed") || 0);
-    if (Date.now() - dismissed > 7 * 24 * 3600 * 1000) setTimeout(showSoftPrompt, 3500);
+    if (Date.now() - dismissed > 7 * 24 * 3600 * 1000) setTimeout(showSetupPrompt, 3500);
   }
-  updateNotifBtn();
 }
 
 // ── SOUND & NOTIFICATIONS ─────────────────────────────────

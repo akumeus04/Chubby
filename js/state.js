@@ -10,7 +10,6 @@ export const state = {
   replyingToName: "",
   replyingToMedia: "",
   replyingToMime: "",
-  messaging: null,
   selectedFiles: [],
   _lightboxCurrentUrl: "",
   _lightboxCurrentType: "",

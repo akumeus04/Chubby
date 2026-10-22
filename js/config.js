@@ -15,8 +15,3 @@ export const firebaseConfig = {
 export const appsScriptUrl = "https://script.google.com/macros/s/AKfycbxmk_XKLEhBasP6MH1TJev4VTVZmAK7ff5eTsoj82bVC6YaoJw3f4D571sjj9GrcED_/exec"; 
 
 export const GIPHY_API_KEY = "CUKuNGhZYEuz3HWS5ybpViRmpoDWm8P2";
-
-// Web Push (Android Chrome / installed app) key pair.
-// Optional: Firebase Console → Project settings → Cloud Messaging → Web Push certificates → "Generate key pair".
-// Leave "" to use Firebase's default key.
-export const VAPID_KEY = "";
