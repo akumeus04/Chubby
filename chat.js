@@ -174,10 +174,12 @@ window.loadChat = function() {
           bridge.getSound().play().catch(()=>{});
           const title = "New message from " + (change.doc.data().senderName || "Partner");
           const body  = change.doc.data().text || "Sent a media file 📩";
-          if ('Notification' in window && Notification.permission === "granted" && document.hidden) {
+          // If real push (FCM) is connected on this device, the service worker already shows the notification — skip the local one to avoid a double ping.
+          if ('Notification' in window && Notification.permission === "granted" && document.hidden && !window.chubbyPushReady) {
             if ('serviceWorker' in navigator) {
               navigator.serviceWorker.ready.then(reg => {
-                reg.showNotification(title, { body: body, icon: '/icon-192.png', badge: '/icon-192.png', vibrate: [200, 100, 200] });
+                const iconUrl = new URL('icon-192.png', reg.scope).href;
+                reg.showNotification(title, { body: body, icon: iconUrl, badge: iconUrl, vibrate: [200, 100, 200], tag: 'chubby-chat-notification', renotify: true });
               });
             } else {
               try { new Notification(title, { body }); } catch(e) {}

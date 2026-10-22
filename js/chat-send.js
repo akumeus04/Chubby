@@ -8,7 +8,7 @@ import { getSavedReplies, renderSavedRepliesPanel, renderSavedRepliesSettings, s
 import { addLongPressAndRightClick, addReaction, showContextMenu } from "./message-actions.js";
 import { msgInput } from "./input-bar.js";
 import { mediaUpload, renderAttachmentGallery } from "./attachments.js";
-import { getSound, showInAppBanner } from "./notifications.js";
+import { getSound, showInAppBanner, notifyPartner } from "./notifications.js";
 import { formatMessageText } from "./formatter.js";
 import { buildMediaHtml } from "./media.js";
 import { state } from "./state.js";
@@ -97,31 +97,8 @@ document.getElementById("send-btn").addEventListener("click", async () => {
     // Save to Firestore first
     await addDoc(collection(db, "messages"), { ...basePayload, text: textVal });
     
-    // ✨ NEW: Trigger the HTTP v1 Background Push Notification
-    try {
-      // Find the partner's token (grab any token that doesn't belong to the current user)
-      const tokensSnap = await getDocs(collection(db, "fcm_tokens"));
-      tokensSnap.forEach(tokenDoc => {
-        if (tokenDoc.id !== state.currentUser.uid) {
-          const partnerToken = tokenDoc.data().token;
-          
-          // Silently ping your Google Apps Script in the background
-          fetch(appsScriptUrl, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({
-              secret: state.uploadSecret,
-              action: "notify",
-              targetToken: partnerToken,
-              title: state.currentUser.displayName || "Partner",
-              body: textVal
-            })
-          }).catch(e => console.error("Apps Script Ping Error:", e));
-        }
-      });
-    } catch (pushErr) {
-      console.error("Failed to fetch tokens for push:", pushErr);
-    }
+    // Push a notification to every device of your partner
+    notifyPartner(textVal);
   }
 
   // 3. Upload files sequentially in the background
@@ -165,6 +142,7 @@ document.getElementById("send-btn").addEventListener("click", async () => {
             mediaUrl: result.url, 
             mimeType: fileVal.type 
           }); 
+          notifyPartner(fileVal.type.startsWith("image/") ? "📷 Sent you a photo" : fileVal.type.startsWith("video/") ? "🎥 Sent you a video" : "📎 Sent you a file");
         } else {
           console.error("Upload failed for", fileVal.name, result.message);
         }

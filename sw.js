@@ -14,7 +14,7 @@ firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
 // 3. CACHE SETTINGS (Bumped to v4.0 for the split-file layout)
-const CACHE_NAME = 'chubby-chat-v4.1';
+const CACHE_NAME = 'chubby-chat-v4.2';
 const URLS_TO_CACHE = [
   './',
   './index.html',
@@ -57,40 +57,48 @@ const URLS_TO_CACHE = [
 ];
 
 // 4. BACKGROUND NOTIFICATION HANDLER
+// URLs are built from the service-worker scope, so it works on GitHub Pages (/Chubby/), Firebase Hosting, or anywhere else.
+const APP_URL  = self.registration.scope;
+const ICON_URL = new URL('icon-192.png', self.registration.scope).href;
+
 messaging.onBackgroundMessage((payload) => {
   console.log('[sw.js] Background message received:', payload);
 
-  // ✨ Read from payload.DATA instead of payload.NOTIFICATION
-  const title = payload.data?.title || "New Message";
+  const data  = payload.data || {};
+  const title = data.title || "New Message";
+
+  // Only trust a link that points at this same site
+  let openUrl = APP_URL;
+  try { if (data.url && new URL(data.url).origin === self.location.origin) openUrl = data.url; } catch (e) {}
+
   const options = {
-    body: payload.data?.body || "Check your chat! 🌸",
-    
-    // ⚡ CRITICAL FIX: Absolute URLs for the Android OS
-    icon: 'https://ourmessenger-76636.web.app/icon-192.png',
-    badge: 'https://ourmessenger-76636.web.app/icon-192.png',
-    
-    // ⚡ This array triggers the native hardware vibration motor! (Pause, Buzz, Pause)
-    vibrate: [300, 100, 300, 100, 300], 
-    
+    body: data.body || "Check your chat! 🌸",
+    icon: ICON_URL,
+    badge: ICON_URL,
+    // Buzz-pause-buzz on Android
+    vibrate: [300, 100, 300, 100, 300],
     tag: 'chubby-chat-notification',
     renotify: true,
-    requireInteraction: true, // Forces banner to stay on screen until interacted with
-    
-    // Absolute fallback URL for the click handler
-    data: { url: payload.data?.url || 'https://ourmessenger-76636.web.app/' } 
+    requireInteraction: true,       // stays on screen until you tap it
+    timestamp: Date.now(),
+    lang: 'en',
+    data: { url: openUrl }
   };
 
-  // This command forces the Android OS to physically draw the banner and play the sound
+  // Forces the OS to draw the banner and play the sound
   return self.registration.showNotification(title, options);
 });
 
-// Handle notification click to re-open the app
+// Tapping the notification opens (or focuses) the app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || APP_URL;
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      if (windowClients.length > 0) return windowClients[0].focus();
-      return clients.openWindow(event.notification.data.url);
+      for (const c of windowClients) {
+        if (c.url.startsWith(APP_URL) && 'focus' in c) return c.focus();
+      }
+      return clients.openWindow(target);
     })
   );
 });
