@@ -146,10 +146,13 @@ $("pushover-test-btn").addEventListener("click", () => {
 });
 
 $("pushover-clear-btn").addEventListener("click", () => { 
-  $("notif-status").dataset.auto = ""; 
-  myKey = ""; // Explicitly reset local key
-  if ($("pushover-sound-select")) $("pushover-sound-select").value = "pushover";
-  saveKey(""); // Clears key in Firestore
+  // Add the warning confirmation prompt
+  if (confirm("Are you sure you want to clear your Pushover User Key? You will stop receiving push notifications.")) {
+    $("notif-status").dataset.auto = ""; 
+    myKey = ""; // Explicitly reset local key
+    if ($("pushover-sound-select")) $("pushover-sound-select").value = "pushover"; // Reset sound to default
+    saveKey(""); // Clears key in Firestore
+  }
 });
 
 // ── Friendly first-run prompt ────────────────────────────
