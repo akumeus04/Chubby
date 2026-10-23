@@ -1,21 +1,12 @@
-// Notifications via Pushover (User Key), plus in-app sound and banner.
-//
-// How it works:
-//   • Each person pastes their own Pushover USER KEY in Settings. It is saved in Firestore (fcm_tokens/{uid}.pushoverUserKey).
-//   • When you send a message, this site asks your Google Apps Script to call Pushover for your PARTNER's user key.
-//   • The Pushover API TOKEN lives only inside Apps Script (Script Properties) — never in this public website code.
 import { serverTimestamp, doc, setDoc, getDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db } from "./firebase.js";
 import { appsScriptUrl } from "./config.js";
 import { state } from "./state.js";
 
-const KEY_RE = /^[A-Za-z0-9]{30}$/;          // Pushover user/group keys are 30 letters+digits
 const appUrl = () => new URL("./", location.href).href;
 const $ = (id) => document.getElementById(id);
-let myKey = "";                              // this user's saved Pushover key
 let mySound = "pushover";
 
-function maskKey(k) { return k ? k.slice(0, 3) + "••••••••••••••••••••••" + k.slice(-3) : ""; }
 function setStatus(text, kind) {
   const el = $("notif-status"); if (!el) return;
   el.textContent = text;
@@ -23,185 +14,91 @@ function setStatus(text, kind) {
 }
 
 // ── Talk to Apps Script ──────────────────────────────────
-async function callPushover(userKey, title, message, sound) {
+async function callPushover(targetUid, title, message, sound) {
   const res = await fetch(appsScriptUrl, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
       secret: state.uploadSecret,
       action: "pushover",
-      userKey,
+      userKey: targetUid, // Send the UID instead of a real key! GAS will translate it.
       title: title || (state.currentUser && state.currentUser.displayName) || "Partner",
       message,
-      sound: sound || "pushover", // Pass the sound!
+      sound: sound || "pushover", 
       url: appUrl()
     })
   });
-  return res.json();           // { status: "success" } or { status: "error", message }
+  return res.json(); 
 }
 
-// Send a Pushover notification by passing the partner's UID to Apps Script
+// Send a Pushover notification to your partner
 export async function notifyPartner(body, title) {
   if (!state.currentUser || !appsScriptUrl) return;
-  
   try {
     const snap = await getDocs(collection(db, "users"));
-    
     snap.forEach(d => {
-      // Skip our own profile
-      if (d.id === state.currentUser.uid) return;
+      if (d.id === state.currentUser.uid) return; // Skip our own profile
       
-      const targetUid = d.id; 
-      const data = d.data() || {};
+      const sound = (d.data() && d.data().pushoverSound) || "pushover";
       
-      // Grab their dynamically chosen sound (default to 'pushover')
-      const sound = data.pushoverSound || "pushover";
-      
-      // Pass the targetUid instead of a 30-character key! GAS will translate it.
-      callPushover(targetUid, title, body, sound)
+      callPushover(d.id, title, body, sound)
         .catch(e => console.error("GAS Fetch Error:", e));
     });
-    
   } catch (e) {
     console.error("🚨 FIREBASE ERROR:", e);
   }
 }
 
-// ── Save / test (Settings screen) ────────────────────────
-async function saveKey(raw, { quiet } = {}) {
-  let key = (raw || "").trim();
+// ── Save / Test (Settings screen) ────────────────────────
+async function saveSound() {
+  if (!state.currentUser) return false;
   const sound = $("pushover-sound-select") ? $("pushover-sound-select").value : "pushover"; 
 
-  // If the input is empty but we already have a saved key, preserve the existing key!
-  if (!key && myKey) {
-    key = myKey;
-  }
-
-  if (!state.currentUser) return false;
-  if (key && !KEY_RE.test(key)) { 
-    setStatus("That doesn't look right — a Pushover User Key is 30 letters/numbers (shown on pushover.net's dashboard).", "bad"); 
-    return false; 
-  }
-
   try {
-    // Save both the key and sound to Firestore
-    await setDoc(doc(db, "fcm_tokens", state.currentUser.uid), { 
-      pushoverUserKey: key, 
+    await setDoc(doc(db, "users", state.currentUser.uid), { 
       pushoverSound: sound, 
       pushoverUpdated: serverTimestamp() 
     }, { merge: true });
 
-    myKey = key;
     mySound = sound;
-    window.chubbyPushReady = !!key;
-    refreshUI();
-
-    if (!quiet) setStatus(key ? "Saved ✓ — tap “Send test” to check your phone." : "Pushover turned off.", key ? "ok" : "");
+    setStatus("Ringtone saved ✓ — tap “Test Sound” to check.", "ok");
     return true;
   } catch (e) {
-    console.error("Could not save Pushover key:", e);
-    setStatus("Couldn't save the key (" + (e.message || e) + ").", "bad");
+    setStatus("Couldn't save sound (" + (e.message || e) + ").", "bad");
     return false;
   }
 }
 
 async function sendTest() {
-  if (!myKey) { setStatus("Save your User Key first.", "bad"); return; }
+  if (!state.currentUser) return;
   setStatus("Sending test…");
   try {
-    const r = await callPushover(myKey, "Chubby Chat 🌸", "Pushover is connected! You'll get pings like this when your partner messages you 💕", mySound);
-    if (r && r.status === "success") setStatus("Test sent ✓ — check your phone's Pushover notification.", "ok");
-    else setStatus("Pushover said: " + ((r && r.message) || "unknown error") + " — check the User Key and your Apps Script setup.", "bad");
+    // Send our own UID to GAS. GAS will magically swap it for our real Pushover Key!
+    const r = await callPushover(state.currentUser.uid, "Chubby Chat 🌸", "This is your new ringtone! 🎵", mySound);
+    if (r && r.status === "success") setStatus("Test sent ✓ — check your phone.", "ok");
+    else setStatus("Error: Check Apps Script setup.", "bad");
   } catch (e) {
-    setStatus("Couldn't reach Apps Script (" + (e.message || e) + "). Did you deploy a new version?", "bad");
+    setStatus("Couldn't reach Apps Script.", "bad");
   }
 }
 
-function refreshUI() {
-  const input = $("pushover-key-input"), test = $("pushover-test-btn"), clear = $("pushover-clear-btn");
-  if (input && document.activeElement !== input) input.value = "";
-  if (input) input.placeholder = myKey ? "Saved: " + maskKey(myKey) : "Paste your 30-character User Key";
-  if (test) test.style.display = myKey ? "" : "none";
-  if (clear) clear.style.display = myKey ? "" : "none";
-  if (!$("notif-status").textContent || $("notif-status").dataset.auto === "1") {
-    $("notif-status").dataset.auto = "1";
-    setStatus(myKey ? "Connected to Pushover ✓ (" + maskKey(myKey) + ")" : "Install the Pushover app, then paste your User Key to get pings on your phone.", myKey ? "ok" : "");
-  }
-}
+if ($("pushover-save-btn")) $("pushover-save-btn").addEventListener("click", () => saveSound());
+if ($("pushover-test-btn")) $("pushover-test-btn").addEventListener("click", () => sendTest());
 
-$("pushover-save-btn").addEventListener("click", () => { 
-  $("notif-status").dataset.auto = ""; 
-  saveKey($("pushover-key-input").value); 
-});
-
-$("pushover-key-input").addEventListener("keydown", (e) => { 
-  if (e.key === "Enter") $("pushover-save-btn").click(); 
-});
-
-$("pushover-test-btn").addEventListener("click", () => { 
-  $("notif-status").dataset.auto = ""; 
-  sendTest(); 
-});
-
-$("pushover-clear-btn").addEventListener("click", () => { 
-  // Add the warning confirmation prompt
-  if (confirm("Are you sure you want to clear your Pushover User Key? You will stop receiving push notifications.")) {
-    $("notif-status").dataset.auto = ""; 
-    myKey = ""; // Explicitly reset local key
-    if ($("pushover-sound-select")) $("pushover-sound-select").value = "pushover"; // Reset sound to default
-    saveKey(""); // Clears key in Firestore
-  }
-});
-
-// ── Friendly first-run prompt ────────────────────────────
-let promptShown = false;
-function showSetupPrompt() {
-  if (promptShown || myKey || $("notif-soft-prompt")) return;
-  promptShown = true;
-  const box = document.createElement("div");
-  box.id = "notif-soft-prompt";
-  box.style.cssText = "position:fixed;left:12px;right:12px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:9000;max-width:420px;margin:0 auto;background:var(--surface);color:var(--text-primary);border:1px solid var(--border);border-radius:22px;padding:16px;box-shadow:var(--shadow);font-family:var(--font);";
-  box.innerHTML = `
-    <div style="display:flex;gap:12px;align-items:center;">
-      <div style="font-size:30px">🔔</div>
-      <div><div style="font-weight:800;font-size:15px">Get pings on your phone 💕</div>
-      <div style="font-size:13px;color:var(--text-secondary);margin-top:2px">Paste your Pushover User Key to get notified when a message arrives.</div></div>
-    </div>
-    <input id="notif-soft-key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="30-character User Key"
-      style="width:100%;margin-top:12px;padding:12px 14px;font-size:16px;border-radius:14px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text-primary);font-family:var(--font);outline:none;">
-    <div id="notif-soft-msg" style="font-size:12px;color:var(--danger);min-height:0;margin-top:6px"></div>
-    <div style="display:flex;gap:10px;margin-top:10px">
-      <button id="notif-soft-yes" style="flex:1;border:none;border-radius:14px;padding:12px;font-weight:800;font-size:14px;color:#fff;background:var(--my-bubble-bg);cursor:pointer">Save</button>
-      <button id="notif-soft-no" style="flex:0 0 auto;border:1px solid var(--border);border-radius:14px;padding:12px 16px;font-weight:700;font-size:14px;color:var(--text-secondary);background:transparent;cursor:pointer">Not now</button>
-    </div>`;
-  document.body.appendChild(box);
-  $("notif-soft-no").onclick = () => { localStorage.setItem("chubby-notif-dismissed", String(Date.now())); box.remove(); };
-  $("notif-soft-yes").onclick = async () => {
-    const v = $("notif-soft-key").value.trim();
-    if (!KEY_RE.test(v)) { $("notif-soft-msg").textContent = "A User Key is 30 letters/numbers."; return; }
-    if (await saveKey(v, { quiet: true })) { box.remove(); showInAppBanner("Pushover connected 🎉", "Open Settings → Notifications to send a test."); }
-  };
-}
-
-// Called after login
+// Called automatically right after login
 export async function initNotifications(user) {
   if (!user) return;
   try {
-    const snap = await getDoc(doc(db, "fcm_tokens", user.uid));
-    myKey = (snap.exists() && snap.data().pushoverUserKey) || "";
-	mySound = (snap.exists() && snap.data().pushoverSound) || "pushover";
-	if ($("pushover-sound-select")) $("pushover-sound-select").value = mySound; // Set dropdown on load
-  } catch (e) { console.error("Could not load Pushover key:", e); }
-  window.chubbyPushReady = !!myKey;
-  $("notif-status").dataset.auto = "1"; $("notif-status").textContent = "";
-  refreshUI();
-  if (!myKey) {
-    const dismissed = Number(localStorage.getItem("chubby-notif-dismissed") || 0);
-    if (Date.now() - dismissed > 7 * 24 * 3600 * 1000) setTimeout(showSetupPrompt, 3500);
+    const snap = await getDoc(doc(db, "users", user.uid));
+    mySound = (snap.exists() && snap.data().pushoverSound) || "pushover";
+    if ($("pushover-sound-select")) $("pushover-sound-select").value = mySound;
+    setStatus("Push notifications are active ✓", "ok");
+  } catch (e) { 
+    console.error("Could not load sound preference:", e); 
   }
 }
 
-// ── SOUND & NOTIFICATIONS ─────────────────────────────────
+// ── IN-APP SOUND & NOTIFICATIONS (Banner) ────────────────
 let notifSound = null;
 export function getSound() {
   if (!notifSound) {
@@ -220,6 +117,7 @@ export function getSound() {
   }
   return notifSound;
 }
+
 export function showInAppBanner(title, body) {
   let banner = document.getElementById("notif-banner");
   if (!banner) {
