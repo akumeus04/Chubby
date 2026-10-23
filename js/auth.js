@@ -4,7 +4,7 @@ import { ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/fir
 import { auth, rtdb } from "./firebase.js";
 import { getDirectImageUrl } from "./helpers.js";
 import { buildEmojiPicker } from "./emoji.js";
-import { renderSavedRepliesSettings } from "./saved-replies.js";
+import { initSavedReplies } from "./saved-replies.js";
 import { setupPresence, setupTypingIndicator } from "./presence.js";
 import { initNotifications } from "./notifications.js";
 import { applyTheme } from "./theme.js";
@@ -112,7 +112,7 @@ onAuthStateChanged(auth, user => {
     setupPresence(user.uid);
     setupTypingIndicator(user.uid);
     buildEmojiPicker();
-    renderSavedRepliesSettings();
+    initSavedReplies();
     
     // chat.js is a separate module; if it hasn't finished loading yet, wait for it.
     startChatWhenReady();
