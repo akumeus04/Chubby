@@ -40,32 +40,48 @@ async function callPushover(userKey, title, message, sound) {
   return res.json();           // { status: "success" } or { status: "error", message }
 }
 
-// Send a Pushover notification to your partner's phone (called after every message you send).
+// Send a Pushover notification to your partner's phone
 export async function notifyPartner(body, title) {
-  if (!state.currentUser || !appsScriptUrl) return;
+  console.log("1. notifyPartner triggered! Message:", body);
+  
+  if (!state.currentUser || !appsScriptUrl) {
+    console.log("2. Aborted: Not logged in or missing GAS URL.");
+    return;
+  }
+  
   try {
-    // 1. Get all tokens from the database
+    console.log("3. Asking Firebase for partner tokens...");
     const snap = await getDocs(collection(db, "fcm_tokens"));
+    console.log("4. Success! Found", snap.size, "profiles in fcm_tokens.");
     
-    // 2. Loop through them
     snap.forEach(d => {
-      // 3. Skip our own ID so we don't ping ourselves
-      if (d.id === state.currentUser.uid) return;
+      console.log("5. Checking profile UID:", d.id);
       
-      // 4. Extract the partner's data and sound preference
+      // Skip our own profile
+      if (d.id === state.currentUser.uid) {
+        console.log("6. Skipping our own profile.");
+        return;
+      }
+      
       const data = d.data() || {};
       const key = data.pushoverUserKey;
       const sound = data.pushoverSound || "pushover";
       
-      if (!key) return; // Partner hasn't set Pushover up yet
+      console.log("7. Partner profile found -> Key:", key, "| Sound:", sound);
       
-      // 5. Send the ping with the custom sound!
+      if (!key) {
+        console.log("8. Aborted: Partner has no saved Pushover Key.");
+        return; 
+      }
+      
+      console.log("9. Sending payload to Google Apps Script...");
       callPushover(key, title, body, sound)
-        .then(r => { if (r && r.status !== "success") console.error("Pushover error:", r.message); })
-        .catch(e => console.error("Pushover ping error:", e));
+        .then(r => console.log("10. GAS Response:", r))
+        .catch(e => console.error("11. GAS Fetch Error:", e));
     });
+    
   } catch (e) {
-    console.error("Failed to look up partner's Pushover key:", e);
+    console.error("🚨 FIREBASE ERROR: Could not read fcm_tokens. Your security rules might be blocking it!", e);
   }
 }
 
