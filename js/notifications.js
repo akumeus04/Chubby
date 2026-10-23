@@ -40,48 +40,30 @@ async function callPushover(userKey, title, message, sound) {
   return res.json();           // { status: "success" } or { status: "error", message }
 }
 
-// Send a Pushover notification to your partner's phone
+// Send a Pushover notification by passing the partner's UID to Apps Script
 export async function notifyPartner(body, title) {
-  console.log("1. notifyPartner triggered! Message:", body);
-  
-  if (!state.currentUser || !appsScriptUrl) {
-    console.log("2. Aborted: Not logged in or missing GAS URL.");
-    return;
-  }
+  if (!state.currentUser || !appsScriptUrl) return;
   
   try {
-    console.log("3. Asking Firebase for partner tokens...");
-    const snap = await getDocs(collection(db, "fcm_tokens"));
-    console.log("4. Success! Found", snap.size, "profiles in fcm_tokens.");
+    const snap = await getDocs(collection(db, "users"));
     
     snap.forEach(d => {
-      console.log("5. Checking profile UID:", d.id);
-      
       // Skip our own profile
-      if (d.id === state.currentUser.uid) {
-        console.log("6. Skipping our own profile.");
-        return;
-      }
+      if (d.id === state.currentUser.uid) return;
       
+      const targetUid = d.id; 
       const data = d.data() || {};
-      const key = data.pushoverUserKey;
+      
+      // Grab their dynamically chosen sound (default to 'pushover')
       const sound = data.pushoverSound || "pushover";
       
-      console.log("7. Partner profile found -> Key:", key, "| Sound:", sound);
-      
-      if (!key) {
-        console.log("8. Aborted: Partner has no saved Pushover Key.");
-        return; 
-      }
-      
-      console.log("9. Sending payload to Google Apps Script...");
-      callPushover(key, title, body, sound)
-        .then(r => console.log("10. GAS Response:", r))
-        .catch(e => console.error("11. GAS Fetch Error:", e));
+      // Pass the targetUid instead of a 30-character key! GAS will translate it.
+      callPushover(targetUid, title, body, sound)
+        .catch(e => console.error("GAS Fetch Error:", e));
     });
     
   } catch (e) {
-    console.error("🚨 FIREBASE ERROR: Could not read fcm_tokens. Your security rules might be blocking it!", e);
+    console.error("🚨 FIREBASE ERROR:", e);
   }
 }
 
