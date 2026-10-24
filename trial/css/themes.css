@@ -1,0 +1,64 @@
+/* Reset, colour tokens, dark & light themes */
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+	
+	/* Makes the background preview box show the darkening effect */
+.bg-preview-box::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: var(--chat-bg-overlay, transparent);
+  pointer-events: none;
+}
+
+    :root {
+      /* ── ROSE NIGHT (dark pink, default) ── */
+      --bg:            #1c0f17;
+      --surface:       #2b1722;
+      --surface2:      #38202d;
+      --surface3:      #46293a;
+      --border:        rgba(255,170,205,0.14);
+      --accent:        #ff6fa5;
+      --accent-dim:    rgba(255,111,165,0.18);
+      --accent-glow:   rgba(255,111,165,0.38);
+      --my-bubble:     #d63a7c;
+      --my-bubble-bg:  linear-gradient(135deg, #c92d6f 0%, #e5487f 100%);
+      --their-bubble:  #3a2030;
+      --text-primary:  #ffeaf3;
+      --text-secondary:#f2adc8;
+      --text-muted:    #b07a92;
+      --online:        #4cdb8e;
+      --idle:          #f5a623;
+      --danger:        #ff6b88;
+      --header-bg:     linear-gradient(135deg, #3d1a2d 0%, #5a2140 100%);
+      --chip-bg:       rgba(255,255,255,0.07);
+      --radius-lg:     22px;
+      --radius-md:     14px;
+      --radius-sm:     10px;
+      --shadow:        0 10px 36px rgba(0,0,0,0.45);
+      --font:          'Nunito', 'DM Sans', system-ui, -apple-system, sans-serif;
+      --sidebar-w:     280px;
+      --chat-bg-image: none;
+    }
+
+    /* ── COTTON CANDY (light pink) ── */
+    [data-theme="light"] {
+      --bg:            #fff4f8;
+      --surface:       #ffffff;
+      --surface2:      #ffeaf2;
+      --surface3:      #ffd7e6;
+      --border:        rgba(224,80,135,0.16);
+      --accent:        #e0407f;
+      --accent-dim:    rgba(224,64,127,0.12);
+      --accent-glow:   rgba(224,64,127,0.28);
+      --my-bubble:     #d63a7c;
+      --my-bubble-bg:  linear-gradient(135deg, #d12f73 0%, #ec5a93 100%);
+      --their-bubble:  #ffffff;
+      --text-primary:  #45132c;
+      --text-secondary:#96496b;
+      --text-muted:    #b97a97;
+      --online:        #22c55e;
+      --danger:        #e11d48;
+      --header-bg:     linear-gradient(135deg, #f0508c 0%, #ff86b3 100%);
+      --chip-bg:       rgba(224,64,127,0.10);
+      --shadow:        0 8px 28px rgba(200,50,100,0.16);
+    }
