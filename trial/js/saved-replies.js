@@ -59,10 +59,3 @@ document.getElementById("saved-replies-panel").addEventListener("click", e => e.
 document.getElementById("sidebar-saved-btn")?.addEventListener("click", () => {
   document.getElementById("saved-btn").click();
 });
-
-// Called by auth.js after login. (Stand-in so this package runs on its own — if your repo already has
-// a newer saved-replies.js with its own initSavedReplies(), KEEP YOURS and don't copy this file over it.)
-export function initSavedReplies() {
-  renderSavedRepliesSettings();
-  renderSavedRepliesPanel();
-}
