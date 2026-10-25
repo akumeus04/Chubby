@@ -11,8 +11,12 @@ export const firebaseConfig = {
   appId: "1:541588910843:web:221fd00e69a4711624b65e"
 };
 
+// 1. URL for Google Drive Uploads (Your main Code.gs)
+export const appsScriptUrl = "https://script.google.com/macros/s/AKfycbzsq7XjOl43bKN1pC2gs_1HCmy9aBaIwVS3RcDQHNf4yjNG-vadncYlguWDgABCaLg/exec"; 
 
-export const appsScriptUrl = "https://script.google.com/macros/s/AKfycbxxfkxTavuxQyZFH0bRp6PHD4xnnrH6v1myV0x0_rkoBiwXQk_TZzIWDRy2m3x1BGbShg/exec"; 
+// 2. URL for Pushover Notifications (Your separate Magic Router script)
+// 🚨 REPLACE THIS WITH YOUR SECOND SCRIPT'S WEB APP URL:
+export const pushoverAppsScriptUrl = "https://script.google.com/macros/s/AKfycbwAWOQoiaNOo51dL9_s04D9L8waDNV--Euoz8NR_csyhJX635jf48oOZyYoxDyCf6vr/exec"; 
 
 export const GIPHY_API_KEY = "CUKuNGhZYEuz3HWS5ybpViRmpoDWm8P2";
 
