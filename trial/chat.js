@@ -170,22 +170,30 @@ window.loadChat = function() {
     // Only fire notification/sound logic on subsequent real-time updates (not on initial batch load)
     if (!initialLoad && !isFirstSnapshot) {
       snapshot.docChanges().forEach(change => {
-        if (change.type === "added" && change.doc.data().senderId !== currentUser.uid) {
-          bridge.getSound().play().catch(()=>{});
-          const title = "New message from " + (change.doc.data().senderName || "Partner");
-          const body  = change.doc.data().text || "Sent a media file 📩";
-          // If real push (FCM) is connected on this device, the service worker already shows the notification — skip the local one to avoid a double ping.
-          if ('Notification' in window && Notification.permission === "granted" && document.hidden && !window.chubbyPushReady) {
-            if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.ready.then(reg => {
+        if (change.type === "added") {
+          const newMsgData = change.doc.data();
+          const newMsgText = newMsgData.text || "";
+
+          // 🎉 Trigger Confetti or 💋 Kiss Animation on incoming messages
+          if (bridge.triggerEmojiAnimation) {
+            bridge.triggerEmojiAnimation(newMsgText);
+          } else if (typeof window.triggerEmojiAnimation === "function") {
+            window.triggerEmojiAnimation(newMsgText);
+          }
+
+          if (newMsgData.senderId !== currentUser.uid) {
+            bridge.getSound().play().catch(()=>{});
+            const title = "New message from " + (newMsgData.senderName || "Partner");
+            const body  = newMsgText || "Sent a media file 📩";
+            // If real push (FCM) is connected on this device, the service worker already shows the notification — skip the local one to avoid a double ping.
+            if ('Notification' in window && Notification.permission === "granted" && document.hidden && !window.chubbyPushReady) {
+              navigator.serviceWorker?.ready.then(reg => {
                 const iconUrl = new URL('icon-192.png', reg.scope).href;
                 reg.showNotification(title, { body: body, icon: iconUrl, badge: iconUrl, vibrate: [200, 100, 200], tag: 'chubby-chat-notification', renotify: true });
-              });
-            } else {
-              try { new Notification(title, { body }); } catch(e) {}
+              }).catch(()=>{});
             }
+            if (!document.hidden) bridge.showInAppBanner(title, body);
           }
-          if (!document.hidden) bridge.showInAppBanner(title, body);
         }
       });
     }
@@ -288,6 +296,11 @@ window.loadChat = function() {
         
         // ✨ Passes the FULL 'data' object to the menu so the Reply button knows what it's replying to
         bridge.addLongPressAndRightClick(bubble, e => bridge.showContextMenu(e, docId, isMe, data));
+
+        // 💫 NEW: Attach Swipe-to-Reply gesture to every message bubble!
+        if (bridge.addSwipeToReply) {
+          bridge.addSwipeToReply(bubble, docId, isMe, data);
+        }
 
         // Reaction bubble click toggle
         rowEl.querySelectorAll(".reaction-bubble").forEach(rb => {
