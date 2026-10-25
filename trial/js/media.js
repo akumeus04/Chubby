@@ -1,5 +1,5 @@
-// Media bubble HTML rendering with Photo Album Grid support
-// Fixes inline HTML quote escaping bug via openAlbumLightbox & URL-encoded data-album
+// Media bubble HTML rendering with Photo Album Grid & Multi-Document Bundle support
+// Fixes documents turning into images by validating MIME/extensions and rendering document cards for non-images
 
 // ── GLOBAL ALBUM LIGHTBOX HANDLER (CLEAN, NO INLINE QUOTES) ──
 if (typeof window !== "undefined") {
@@ -53,7 +53,44 @@ export function resolveMediaUrl(rawUrl) {
   return rawUrl;
 }
 
-// ── INJECT ALBUM GRID STYLES (ONCE) ───────────────────────
+// ── FILE TYPE DETECTION HELPERS ───────────────────────────
+export function isDocumentOrVideo(mime = "", url = "", name = "") {
+  const m = (mime || "").toLowerCase();
+  const u = (url || "").toLowerCase();
+  const n = (name || "").toLowerCase();
+
+  if (m.startsWith("video/") || m.startsWith("audio/")) return true;
+  if (m === "application/pdf" || m.includes("pdf") || m.includes("word") || m.includes("sheet") || m.includes("presentation") || m.includes("officedocument") || m.includes("zip") || m.includes("tar") || m.startsWith("text/")) return true;
+
+  if (/\.(pdf|docx?|xlsx?|pptx?|odt|ods|odp|zip|rar|7z|tar|gz|txt|csv|mp3|wav|ogg|mp4|mov|webm)(\?|$)/i.test(u)) return true;
+  if (/\.(pdf|docx?|xlsx?|pptx?|odt|ods|odp|zip|rar|7z|tar|gz|txt|csv|mp3|wav|ogg|mp4|mov|webm)$/i.test(n)) return true;
+
+  return false;
+}
+
+export function isImageFile(mime = "", url = "", name = "") {
+  const m = (mime || "").toLowerCase();
+  const u = (url || "").toLowerCase();
+  const n = (name || "").toLowerCase();
+
+  // Explicit album MIME
+  if (m === "image/album") return true;
+
+  // Known non-image types
+  if (isDocumentOrVideo(m, u, n)) return false;
+
+  // Standard image MIME (excluding gif)
+  if (m.startsWith("image/") && !m.includes("gif")) return true;
+
+  // Image file extensions
+  if (/\.(jpe?g|png|webp|heic|avif)(\?|$)/i.test(u) || /\.(jpe?g|png|webp|heic|avif)$/i.test(n)) {
+    return true;
+  }
+
+  return false;
+}
+
+// ── INJECT ALBUM GRID & DOCUMENT CARD STYLES (ONCE) ───────
 function injectAlbumStyles() {
   if (typeof document === 'undefined' || document.getElementById('chubby-album-styles')) return;
   const style = document.createElement('style');
@@ -119,6 +156,82 @@ function injectAlbumStyles() {
       justify-content: center;
       font-family: system-ui, -apple-system, sans-serif;
     }
+    .doc-cards-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+      width: 100%;
+      max-width: 320px;
+    }
+    .doc-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 8px 12px;
+      text-decoration: none;
+      transition: background 0.18s ease, transform 0.15s ease;
+      user-select: none;
+    }
+    .doc-card:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: translateY(-1px);
+    }
+    .doc-card-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: inherit;
+      overflow: hidden;
+      flex: 1;
+      min-width: 0;
+    }
+    .doc-card-icon {
+      font-size: 22px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .doc-card-text {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+    .doc-card-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .doc-card-meta {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.55);
+      margin-top: 1px;
+    }
+    .doc-card-dl {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 13px;
+      flex-shrink: 0;
+      transition: background 0.15s ease;
+    }
+    .doc-card-dl:hover {
+      background: rgba(255, 255, 255, 0.22);
+    }
   `;
   document.head.appendChild(style);
 }
@@ -131,7 +244,7 @@ function buildPhotoGridHtml(urls, data) {
   const count = resolved.length;
   if (count === 0) return "";
 
-  // Unique key for in-memory store + URI-encoded string for HTML attribute (no quotes or brackets!)
+  // Unique key for in-memory store + URI-encoded string for HTML attribute
   const albumKey = "alb_" + Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
   if (typeof window !== "undefined") {
     window._chatAlbumStore = window._chatAlbumStore || {};
@@ -188,6 +301,26 @@ function buildPhotoGridHtml(urls, data) {
   `;
 }
 
+// ── MULTI-DOCUMENT BUNDLE BUILDER ─────────────────────────
+function buildDocumentListHtml(items, data) {
+  injectAlbumStyles();
+  return `
+    <div class="doc-cards-list" onclick="event.stopPropagation()">
+      ${items.map(item => {
+        const itemObj = (typeof item === "object" && item !== null) ? item : { url: item };
+        const rawUrl = itemObj.url || itemObj.mediaUrl || "";
+        const mime = itemObj.mimeType || data.mimeType || "";
+        let fileId = "";
+        if (rawUrl.includes("drive.google.com")) { 
+          const m1 = rawUrl.match(/\/file\/d\/([^\/]+)/), m2 = rawUrl.match(/[?&]id=([^&]+)/); 
+          fileId = m1 ? m1[1] : (m2 ? m2[1] : ""); 
+        }
+        return buildDocumentCard(itemObj, rawUrl, mime, fileId);
+      }).join('')}
+    </div>
+  `;
+}
+
 // ── MEDIA RENDERING (FIXED FOR MULTI-PHOTO ALBUMS, VIDEOS & LIGHTBOX) ──
 export function buildMediaHtml(data, secondaryMime) {
   if (!data) return "";
@@ -197,12 +330,14 @@ export function buildMediaHtml(data, secondaryMime) {
     data = { mediaUrl: data, mimeType: secondaryMime || "" };
   }
 
-  // 1. Gather all possible URL sources for multi-photo albums
+  // 1. Gather all possible file sources
+  const items = Array.isArray(data.mediaItems) && data.mediaItems.length > 0 ? data.mediaItems : null;
   let urls = [];
-  if (Array.isArray(data.mediaUrls) && data.mediaUrls.length > 0) {
+
+  if (items) {
+    urls = items.map(m => (typeof m === "string" ? m : m?.url)).filter(Boolean);
+  } else if (Array.isArray(data.mediaUrls) && data.mediaUrls.length > 0) {
     urls = data.mediaUrls.map(u => (typeof u === "string" ? u : (u?.url || ""))).filter(Boolean);
-  } else if (Array.isArray(data.mediaItems) && data.mediaItems.length > 0) {
-    urls = data.mediaItems.map(u => (typeof u === "string" ? u : (u?.url || ""))).filter(Boolean);
   } else if (Array.isArray(data.images) && data.images.length > 0) {
     urls = data.images.map(u => (typeof u === "string" ? u : (u?.url || ""))).filter(Boolean);
   } else if (typeof data.mediaUrls === "string" && data.mediaUrls.trim()) {
@@ -221,9 +356,36 @@ export function buildMediaHtml(data, secondaryMime) {
     urls = [data.mediaUrl];
   }
 
-  // 2. If more than 1 URL, render the Photo Album Grid!
+  // 2. MULTI-FILE DETECTION: Separate Images from Documents & Videos
   if (urls.length > 1) {
-    return buildPhotoGridHtml(urls, data);
+    let isAllImages = false;
+
+    if (items) {
+      isAllImages = items.every(it => {
+        const m = it.mimeType || "";
+        const u = it.url || "";
+        const fn = it.fileName || "";
+        return isImageFile(m, u, fn);
+      });
+    } else {
+      if (data.mimeType === "image/album") {
+        isAllImages = urls.every(u => !isDocumentOrVideo(data.mimeType, u, data.fileName));
+      } else {
+        isAllImages = urls.every(u => isImageFile(data.mimeType, u, data.fileName));
+      }
+    }
+
+    if (isAllImages) {
+      return buildPhotoGridHtml(urls, data);
+    } else {
+      // Multiple documents or mixed files: render vertical document card bundle
+      const docListItems = items || urls.map((u, i) => ({
+        url: u,
+        mimeType: data.mimeType || "",
+        fileName: data.fileName ? `${data.fileName} (Part ${i + 1})` : ""
+      }));
+      return buildDocumentListHtml(docListItems, data);
+    }
   }
 
   // 3. Single URL fallback: ensure data.mediaUrl is set
@@ -235,7 +397,7 @@ export function buildMediaHtml(data, secondaryMime) {
   const rawUrl = data.mediaUrl, mime = data.mimeType || "";
   const isGif   = mime.includes("gif") || rawUrl.toLowerCase().includes(".gif");
   const isVideo  = mime.startsWith("video/") || /\.(mp4|mov|webm|avi|mkv)(\?|$)/i.test(rawUrl);
-  const isImage  = (mime.startsWith("image/") || /\.(jpg|jpeg|png|webp|heic)(\?|$)/i.test(rawUrl)) && !isGif;
+  const isImage  = isImageFile(mime, rawUrl, data.fileName) && !isGif;
   const isDrive  = rawUrl.includes("drive.google.com");
   
   let fileId = "";
@@ -288,8 +450,9 @@ export function buildMediaHtml(data, secondaryMime) {
   return buildDocumentCard(data, rawUrl, mime, fileId);
 }
 
-// ── DOCUMENT / FILE CARD ──────────────────────────────────
+// ── DOCUMENT / FILE CARD BUILDER ──────────────────────────
 const escHtml = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 function docKind(name, mime) {
   const n = (name || "").toLowerCase(), t = mime || "";
   if (t === "application/pdf" || n.endsWith(".pdf")) return ["📕", "PDF"];
@@ -301,27 +464,52 @@ function docKind(name, mime) {
   if (/\.(txt|md|json|xml|log)$/.test(n) || t.startsWith("text/")) return ["📄", "Text"];
   return ["📎", "File"];
 }
+
 function prettyBytes(b) {
   if (!b && b !== 0) return "";
   if (b < 1024) return b + " B";
   if (b < 1048576) return Math.round(b / 1024) + " KB";
   return (b / 1048576).toFixed(1) + " MB";
 }
-function buildDocumentCard(data, rawUrl, mime, fileId) {
+
+function buildDocumentCard(itemData, rawUrl, mime, fileId) {
+  const data = (typeof itemData === "object" && itemData !== null) ? itemData : {};
+  const url = rawUrl || data.url || data.mediaUrl || "";
+  const m = mime || data.mimeType || "";
+  
+  let fId = fileId;
+  if (!fId && url.includes("drive.google.com")) {
+    const m1 = url.match(/\/file\/d\/([^\/]+)/), m2 = url.match(/[?&]id=([^&]+)/);
+    fId = m1 ? m1[1] : (m2 ? m2[1] : "");
+  }
+
   let name = data.fileName;
-  if (!name) { try { name = decodeURIComponent((rawUrl.split("?")[0].split("/").pop()) || ""); } catch (_) { name = ""; } }
-  if (!name || (fileId && name === "view")) name = "Document";
-  const [icon, label] = docKind(name, mime);
+  if (!name) { 
+    try { 
+      name = decodeURIComponent((url.split("?")[0].split("/").pop()) || ""); 
+    } catch (_) { 
+      name = ""; 
+    } 
+  }
+  if (!name || (fId && name === "view")) name = "Document";
+
+  const [icon, label] = docKind(name, m);
   const size = prettyBytes(data.fileSize);
-  const viewUrl = fileId ? `https://drive.google.com/file/d/${fileId}/view` : rawUrl;
-  const dlUrl   = fileId ? `https://drive.google.com/uc?export=download&id=${fileId}` : rawUrl;
-  return `<div class="doc-card" onclick="event.stopPropagation()">
-    <a class="doc-card-main" href="${viewUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
-      <span class="doc-card-icon">${icon}</span>
-      <span class="doc-card-text"><span class="doc-card-name">${escHtml(name)}</span><span class="doc-card-meta">${label}${size ? " · " + size : ""}</span></span>
-    </a>
-    <a class="doc-card-dl" href="${dlUrl}" target="_blank" rel="noopener" download title="Download" onclick="event.stopPropagation()">⬇</a>
-  </div>`;
+  const viewUrl = fId ? `https://drive.google.com/file/d/${fId}/view` : url;
+  const dlUrl   = fId ? `https://drive.google.com/uc?export=download&id=${fId}` : url;
+
+  return `
+    <div class="doc-card" onclick="event.stopPropagation()">
+      <a class="doc-card-main" href="${viewUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+        <span class="doc-card-icon">${icon}</span>
+        <span class="doc-card-text">
+          <span class="doc-card-name">${escHtml(name)}</span>
+          <span class="doc-card-meta">${label}${size ? " · " + size : ""}</span>
+        </span>
+      </a>
+      <a class="doc-card-dl" href="${dlUrl}" target="_blank" rel="noopener" download title="Download" onclick="event.stopPropagation()">⬇</a>
+    </div>
+  `;
 }
 
 if (typeof window !== "undefined") {

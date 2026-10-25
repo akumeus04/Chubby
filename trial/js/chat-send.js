@@ -297,19 +297,39 @@ document.getElementById("send-btn").addEventListener("click", async () => {
       }); 
       notifyPartner(item.mimeType.startsWith("image/") ? "📷 Sent you a photo" : item.mimeType.startsWith("video/") ? "🎥 Sent you a video" : "📎 " + (item.fileName || "Sent you a file"));
     } else if (uploadedMedia.length > 1) {
-      // Multiple files - single album message with mediaUrls array
+      // Multiple files - single bundled message with mediaUrls & mediaItems
       const urls = uploadedMedia.map(m => m.url);
-      const allImages = uploadedMedia.every(m => m.mimeType.startsWith("image/"));
+      const allImages = uploadedMedia.every(m => m.mimeType && m.mimeType.startsWith("image/") && !m.mimeType.includes("gif"));
+      const allVideos = uploadedMedia.every(m => m.mimeType && m.mimeType.startsWith("video/"));
+
+      let bundleMime = "image/album";
+      let bundleName = `${uploadedMedia.length} photos`;
+      let notifyText = `📷 Sent an album (${uploadedMedia.length} photos)`;
+
+      if (allImages) {
+        bundleMime = "image/album";
+        bundleName = `${uploadedMedia.length} photos`;
+        notifyText = `📷 Sent an album (${uploadedMedia.length} photos)`;
+      } else if (allVideos) {
+        bundleMime = "video/bundle";
+        bundleName = `${uploadedMedia.length} videos`;
+        notifyText = `🎥 Sent ${uploadedMedia.length} videos`;
+      } else {
+        bundleMime = "files/bundle";
+        bundleName = `${uploadedMedia.length} files`;
+        notifyText = `📎 Sent ${uploadedMedia.length} files`;
+      }
+
       await addDoc(collection(db, "messages"), { 
         ...basePayload, 
         mediaUrl: urls[0],
         mediaUrls: urls,
         mediaItems: uploadedMedia,
-        mimeType: allImages ? "image/album" : uploadedMedia[0].mimeType,
-        fileName: `${uploadedMedia.length} photos`,
+        mimeType: bundleMime,
+        fileName: bundleName,
         fileSize: uploadedMedia.reduce((acc, m) => acc + (m.fileSize || 0), 0)
       }); 
-      notifyPartner(`📷 Sent an album (${uploadedMedia.length} photos)`);
+      notifyPartner(notifyText);
     }
     
     statusEl.innerText = "";
