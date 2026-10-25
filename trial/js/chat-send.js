@@ -3,9 +3,9 @@ import { collection, addDoc, serverTimestamp, doc, updateDoc, getDocs } from "ht
 import { ref, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { appsScriptUrl } from "./config.js";
 import { db, rtdb } from "./firebase.js";
-import { getDirectImageUrl } from "./helpers.js";
+import { getDirectImageUrl, playConfetti, playKissAnimation, triggerEmojiAnimation } from "./helpers.js";
 import { getSavedReplies, renderSavedRepliesPanel, renderSavedRepliesSettings, saveSavedReplies } from "./saved-replies.js";
-import { addLongPressAndRightClick, addReaction, showContextMenu } from "./message-actions.js";
+import { addLongPressAndRightClick, addReaction, showContextMenu, addSwipeToReply, triggerReplyState } from "./message-actions.js";
 import { msgInput } from "./input-bar.js";
 import { renderHeaderStatus } from "./presence.js";
 import { mediaUpload, renderAttachmentGallery } from "./attachments.js";
@@ -27,6 +27,11 @@ window.chatBridge = {
   formatMessageText: (txt) => formatMessageText(txt),
   buildMediaHtml: (data) => buildMediaHtml(data),
   addLongPressAndRightClick: (el, cb) => addLongPressAndRightClick(el, cb),
+  addSwipeToReply: (el, id, isMe, data) => addSwipeToReply(el, id, isMe, data),
+  triggerReplyState: (id, data) => triggerReplyState(id, data),
+  playConfetti: () => playConfetti(),
+  playKissAnimation: () => playKissAnimation(),
+  triggerEmojiAnimation: (txt) => triggerEmojiAnimation(txt),
   showContextMenu: (e, id, isMe, data) => showContextMenu(e, id, isMe, data),
   addReaction: (id, em) => addReaction(id, em),
   setReplyState: (id, txt, name, med, mime) => {
