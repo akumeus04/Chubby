@@ -164,7 +164,8 @@ export function playKissAnimation() {
       left: ${leftPercent}%;
       bottom: -60px;
       font-size: ${size}px;
-      animation: floatKissUp ${duration}s cubic-bezier(0.25, 0.46, 0.45, 0.94) ${delay}s forwards;
+      opacity: 0;
+      animation: floatKissUp ${duration}s cubic-bezier(0.25, 0.46, 0.45, 0.94) ${delay}s both;
       filter: drop-shadow(0 4px 14px rgba(244, 63, 94, 0.4));
       user-select: none;
     `;
