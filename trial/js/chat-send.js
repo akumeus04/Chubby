@@ -147,7 +147,7 @@ document.getElementById("send-btn").addEventListener("click", async () => {
           }); 
           notifyPartner(fileVal.type.startsWith("image/") ? "📷 Sent you a photo" : fileVal.type.startsWith("video/") ? "🎥 Sent you a video" : "📎 " + (fileVal.name || "Sent you a file"));
         } else {
-          console.error("Upload failed for", fileVal.name, result.message);
+          console.error("Upload failed for", fileVal.name, result.error);
         }
       } catch(e) { 
         console.error("Network error uploading", fileVal.name); 
