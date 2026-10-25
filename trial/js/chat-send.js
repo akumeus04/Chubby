@@ -123,12 +123,13 @@ document.getElementById("send-btn").addEventListener("click", async () => {
           reader.readAsDataURL(fileVal);
         });
 
-        // Send to Google Apps Script
+// Send to Google Apps Script
         const res = await fetch(appsScriptUrl, { 
           method: "POST", 
           headers: { "Content-Type": "text/plain;charset=utf-8" }, 
           body: JSON.stringify({ 
-            secret: state.uploadSecret, // 🔒 Fetched securely from Firebase
+            secret: state.uploadSecret, 
+            action: "upload",             // ➔ ADD THIS LINE!
             base64: base64Data, 
             mimeType: fileVal.type || "application/octet-stream", 
             fileName: fileVal.name 
