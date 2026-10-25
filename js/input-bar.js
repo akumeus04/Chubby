@@ -13,14 +13,20 @@ msgInput.addEventListener("keydown", e => {
 });
 
 
-// ── MOBILE + EXPAND BUTTON ────────────────────────────────
+// ── "+" BUTTON: opens the tray UNDER the message box ──────
 const expandBtn = document.getElementById("expand-btn");
-const inputBar  = document.getElementById("input-bar");
+const inputArea = document.getElementById("input-area");
+const isPhone = () => window.matchMedia("(max-width: 767px)").matches;
+
+export function setTray(open) {
+  inputArea.classList.toggle("tray-open", open);
+  expandBtn.classList.toggle("open", open);
+  expandBtn.setAttribute("aria-expanded", String(open));
+  if (!open) closeAllPanels();
+}
 expandBtn.addEventListener("click", e => {
   e.stopPropagation();
-  const isOpen = inputBar.classList.toggle("actions-expanded");
-  expandBtn.classList.toggle("open", isOpen);
-  if (!isOpen) closeAllPanels();
+  setTray(!inputArea.classList.contains("tray-open"));
 });
 
 // Close panels when clicking outside — panels use stopPropagation on their own clicks
@@ -29,10 +35,7 @@ document.addEventListener("click", e => {
   if (!inInputArea) closeAllPanels();
 });
 
-
-// Auto-collapse menus when tapping the text input
+// On phones, tapping the text box hides the tray so the keyboard has room
 msgInput.addEventListener("focus", () => {
-  document.getElementById("input-bar").classList.remove("actions-expanded");
-  document.getElementById("expand-btn").classList.remove("open");
-  closeAllPanels();
+  if (isPhone()) setTray(false);
 });

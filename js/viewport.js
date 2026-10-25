@@ -44,3 +44,12 @@ if (input) {
     setTimeout(() => { updateViewport(); scrollToBottom(); }, 320);
   });
 }
+
+// Whenever the chat area changes height (tray opens, attachment chips appear, reply banner shows…)
+// stay pinned to the newest message — but only if you were already reading the bottom.
+const cw = chatEl();
+if (cw && "ResizeObserver" in window) {
+  let stick = true;
+  cw.addEventListener("scroll", () => { stick = isNearBottom(cw); }, { passive: true });
+  new ResizeObserver(() => { if (stick) cw.scrollTop = cw.scrollHeight; }).observe(cw);
+}

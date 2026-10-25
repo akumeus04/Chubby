@@ -1,4 +1,4 @@
-// Idle/online presence and typing indicator
+// Idle/online presence and typing indicator (shown in the header next to the partner's name)
 import { ref, onValue, onDisconnect, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { rtdb } from "./firebase.js";
 import { msgInput } from "./input-bar.js";
@@ -21,13 +21,25 @@ export function setupPresence(uid) {
   });
   onValue(ref(rtdb, "/status"), snap => {
     const statuses = snap.val() || {};
-    let partnerState = "offline";
-    for (const id in statuses) { if (id !== uid && statuses[id].state) partnerState = statuses[id].state; }
-    const el = document.getElementById("status-indicator"), txt = el.querySelector(".status-text");
-    if (partnerState === "online") { el.className = "online"; txt.textContent = state.partnerName + " · Online"; }
-    else if (partnerState === "idle") { el.className = "idle"; txt.textContent = state.partnerName + " · Away"; }
-    else { el.className = ""; txt.textContent = "Offline"; }
+    let st = "offline";
+    for (const id in statuses) { if (id !== uid && statuses[id].state) st = statuses[id].state; }
+    partnerState = st;
+    renderHeaderStatus();
   });
+}
+
+// Header line under the name:  "Partner · Online"   →   "Partner · typing ●●●" while they type
+let partnerState = "offline", partnerTyping = false;
+const escapeHtml = (t) => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+export function renderHeaderStatus() {
+  const el = document.getElementById("status-indicator"), txt = el.querySelector(".status-text");
+  const name = `<span class="st-name">${escapeHtml(state.partnerName || "Partner")}</span>`;
+  if (partnerTyping) {
+    el.className = "online typing";
+    txt.innerHTML = `${name}<span class="st-rest"> · typing <span class="hdr-dots"><i></i><i></i><i></i></span></span>`;
+  } else if (partnerState === "online") { el.className = "online"; txt.innerHTML = `${name}<span class="st-rest"> · Online</span>`; }
+  else if (partnerState === "idle")     { el.className = "idle";   txt.innerHTML = `${name}<span class="st-rest"> · Away</span>`; }
+  else                                  { el.className = "";       txt.textContent = "Offline"; }
 }
 
 // ── TYPING ────────────────────────────────────────────────
@@ -55,6 +67,6 @@ export function setupTypingIndicator(uid) {
     const d = snap.val() || {};
     let pt = false;
     for (const id in d) { if (id !== uid && d[id]) pt = true; }
-    document.getElementById("typing-indicator").style.display = pt ? "block" : "none";
+    if (pt !== partnerTyping) { partnerTyping = pt; renderHeaderStatus(); }
   });
 }

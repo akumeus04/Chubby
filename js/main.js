@@ -21,3 +21,5 @@ import "./chat-send.js";
 import "./pwa.js";
 import "./native-media.js";
 import "./viewport.js";
+import "./file-drop.js";
+import "./touch-guard.js";

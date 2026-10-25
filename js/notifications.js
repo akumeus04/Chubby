@@ -1,6 +1,7 @@
 import { serverTimestamp, doc, setDoc, getDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db } from "./firebase.js";
-import { appsScriptUrl } from "./config.js";
+// ➔ CHANGED: Import the dedicated Pushover URL instead of the main one
+import { pushoverAppsScriptUrl } from "./config.js"; 
 import { state } from "./state.js";
 
 const appUrl = () => new URL("./", location.href).href;
@@ -15,13 +16,14 @@ function setStatus(text, kind) {
 
 // ── Talk to Apps Script ──────────────────────────────────
 async function callPushover(targetUid, title, message, sound) {
-  const res = await fetch(appsScriptUrl, {
+  // ➔ CHANGED: Fetch from the new Pushover GAS URL
+  const res = await fetch(pushoverAppsScriptUrl, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
       secret: state.uploadSecret,
       action: "pushover",
-      userKey: targetUid, // Send the UID instead of a real key! GAS will translate it.
+      userKey: targetUid,
       title: title || (state.currentUser && state.currentUser.displayName) || "Partner",
       message,
       sound: sound || "pushover", 
@@ -33,11 +35,13 @@ async function callPushover(targetUid, title, message, sound) {
 
 // Send a Pushover notification to your partner
 export async function notifyPartner(body, title) {
-  if (!state.currentUser || !appsScriptUrl) return;
+  // ➔ CHANGED: Check for the Pushover URL before firing
+  if (!state.currentUser || !pushoverAppsScriptUrl) return; 
+  
   try {
     const snap = await getDocs(collection(db, "users"));
     snap.forEach(d => {
-      if (d.id === state.currentUser.uid) return; // Skip our own profile
+      if (d.id === state.currentUser.uid) return; 
       
       const sound = (d.data() && d.data().pushoverSound) || "pushover";
       
@@ -73,7 +77,6 @@ async function sendTest() {
   if (!state.currentUser) return;
   setStatus("Sending test…");
   try {
-    // Send our own UID to GAS. GAS will magically swap it for our real Pushover Key!
     const r = await callPushover(state.currentUser.uid, "Chubby Chat 🌸", "This is your new ringtone! 🎵", mySound);
     if (r && r.status === "success") setStatus("Test sent ✓ — check your phone.", "ok");
     else setStatus("Error: Check Apps Script setup.", "bad");

@@ -11,7 +11,16 @@ export const firebaseConfig = {
   appId: "1:541588910843:web:221fd00e69a4711624b65e"
 };
 
+// 1. URL for Google Drive Uploads (Your main Code.gs)
+export const appsScriptUrl = "https://script.google.com/macros/s/AKfycbzsq7XjOl43bKN1pC2gs_1HCmy9aBaIwVS3RcDQHNf4yjNG-vadncYlguWDgABCaLg/exec"; 
 
-export const appsScriptUrl = "https://script.google.com/macros/s/AKfycbwAWOQoiaNOo51dL9_s04D9L8waDNV--Euoz8NR_csyhJX635jf48oOZyYoxDyCf6vr/exec"; 
+// 2. URL for Pushover Notifications (Your separate Magic Router script)
+// 🚨 REPLACE THIS WITH YOUR SECOND SCRIPT'S WEB APP URL:
+export const pushoverAppsScriptUrl = "https://script.google.com/macros/s/AKfycbwAWOQoiaNOo51dL9_s04D9L8waDNV--Euoz8NR_csyhJX635jf48oOZyYoxDyCf6vr/exec"; 
 
 export const GIPHY_API_KEY = "CUKuNGhZYEuz3HWS5ybpViRmpoDWm8P2";
+
+// Web Push (Android Chrome / installed app) key pair.
+// Optional: Firebase Console → Project settings → Cloud Messaging → Web Push certificates → "Generate key pair".
+// Leave "" to use Firebase's default key.
+export const VAPID_KEY = "";

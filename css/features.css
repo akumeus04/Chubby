@@ -1,0 +1,178 @@
+/* ════════════════════════════════════════════════════════════
+   CHUBBY CHAT — features round 2 (loads after revamp.css)
+   • "+" tray under the message box   • modern emoji picker
+   • typing dots in the header         • attachment chips / document cards
+   • drag & drop overlay               • long-press belongs to the app
+   ════════════════════════════════════════════════════════════ */
+
+/* ── 1. THE "+" TRAY (opens UNDER the message box) ───────── */
+#input-area #input-bar #expand-btn { display: flex; }               /* "+" on every screen size */
+#input-area #input-bar #expand-btn.open { transform: rotate(45deg); }
+
+#input-area #composer-tray { display: none; }
+#input-area.tray-open #composer-tray { display: block; animation: trayIn .2s ease; }
+@keyframes trayIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+#input-area #composer-tray #action-buttons-wrapper {
+  position: static; left: auto; right: auto; bottom: auto;
+  opacity: 1; visibility: visible; transform: none;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  flex-direction: row; gap: 12px 4px;
+  width: 100%; max-width: none;
+  margin: 10px 0 0; padding: 14px 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+}
+@media (min-width: 768px) {
+  #input-area #composer-tray #action-buttons-wrapper { grid-template-columns: repeat(7, 1fr); padding: 14px 12px 12px; }
+}
+.tray-item { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.tray-item span { font-size: 11.5px; font-weight: 700; color: var(--text-secondary); letter-spacing: .1px; }
+#input-area .tray-item .input-action-btn {
+  width: 54px; height: 54px; font-size: 25px;
+  border-radius: 20px;
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text-primary);
+  transition: transform .12s ease, background .15s ease;
+}
+#input-area .tray-item .input-action-btn:active { transform: scale(.9); }
+#input-area .tray-item .input-action-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+/* each button gets its own pink-ish tint so they're easy to tell apart */
+#emoji-btn { background: rgba(255,196,0,.16) !important; }
+#gif-btn   { background: rgba(167,92,255,.16) !important; color: #a75cff !important; }
+#saved-btn { background: rgba(255,111,165,.18) !important; }
+.tray-item:nth-child(4) .input-action-btn { background: rgba(60,180,255,.16); }
+.tray-item:nth-child(5) .input-action-btn { background: rgba(255,90,90,.16); }
+.tray-item:nth-child(6) .input-action-btn { background: rgba(76,219,142,.18); }
+.tray-item:nth-child(7) .input-action-btn { background: rgba(255,160,60,.18); }
+
+/* panels (emoji / GIF / quick replies) now sit BELOW the tray, in normal flow */
+#composer-tray .emoji-picker-panel,
+#composer-tray .gif-panel,
+#composer-tray .saved-replies-panel {
+  position: static; left: auto; bottom: auto;
+  width: 100%; max-width: none;
+  margin: 8px 0 0; padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  animation: trayIn .18s ease;
+  z-index: auto;
+}
+/* when a panel is open the tray shrinks to one compact row of icons so the chat keeps its room */
+#input-area:has(.emoji-picker-panel.visible, .gif-panel.visible, .saved-replies-panel.visible) #composer-tray #action-buttons-wrapper {
+  grid-template-columns: repeat(7, 1fr); gap: 4px; padding: 8px 6px; border-radius: 20px; margin-top: 8px;
+}
+#input-area:has(.emoji-picker-panel.visible, .gif-panel.visible, .saved-replies-panel.visible) .tray-item span { display: none; }
+#input-area:has(.emoji-picker-panel.visible, .gif-panel.visible, .saved-replies-panel.visible) #composer-tray .tray-item .input-action-btn { width: 42px; height: 42px; font-size: 20px; border-radius: 14px; }
+.gif-panel .gif-grid { max-height: 240px; }
+
+/* ── 2. EMOJI PICKER ─────────────────────────────────────── */
+.emoji-search-wrap { margin-bottom: 8px; }
+#emoji-search {
+  width: 100%; padding: 10px 14px; border-radius: 16px;
+  border: 1.5px solid var(--border); background: var(--surface2); color: var(--text-primary);
+  font: 16px var(--font); outline: none;
+}
+#emoji-search:focus { border-color: var(--accent); }
+.emoji-tabs { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--border); scrollbar-width: none; }
+.emoji-tabs::-webkit-scrollbar { display: none; }
+.emoji-tab { flex: 0 0 auto; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 21px; border-radius: 12px; border: none; background: transparent; cursor: pointer; }
+.emoji-tab.active { background: var(--accent-dim); box-shadow: inset 0 -3px 0 var(--accent); }
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 2px; max-height: 232px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.emoji-btn { width: 100%; height: 42px; font-size: 27px; line-height: 1; display: flex; align-items: center; justify-content: center; border: none; background: transparent; border-radius: 12px; cursor: pointer; font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; }
+.emoji-btn:active { background: var(--accent-dim); transform: scale(1.18); }
+@media (hover: hover) { .emoji-btn:hover { background: var(--surface2); } }
+.emoji-empty { grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 24px 0; font-weight: 600; }
+
+/* ── 3. TYPING INDICATOR — lives in the header now ───────── */
+#status-indicator { min-width: 0; max-width: 100%; }
+#status-indicator .status-text { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; white-space: nowrap; }
+#status-indicator .st-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }      /* long names shorten…            */
+#status-indicator .st-rest { flex-shrink: 0; display: inline-flex; align-items: center; white-space: pre; }  /* …"· typing ●●●" never does */
+#status-indicator.typing .status-text { color: #fff; font-weight: 800; }
+#status-indicator.typing .dot { display: none; }          /* the bouncing dots replace the green dot while typing */
+@media (max-width: 420px) {
+  #status-indicator { font-size: 12.5px; }
+  .header-actions { gap: 4px; }
+  .header-actions .icon-btn { width: 36px; height: 36px; font-size: 16px; }
+  #header { gap: 8px; }
+}
+.hdr-dots { display: inline-flex; gap: 2px; margin-left: 3px; vertical-align: middle; }
+.hdr-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .55; animation: hdrDot 1.2s ease-in-out infinite; }
+.hdr-dots i:nth-child(2) { animation-delay: .15s; }
+.hdr-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes hdrDot { 0%, 70%, 100% { transform: translateY(0); opacity: .45; } 35% { transform: translateY(-4px); opacity: 1; } }
+
+/* ── 4. ATTACHMENT CHIPS (images, videos, documents) ─────── */
+#attachments-gallery {
+  background: transparent; max-height: none; padding: 0; gap: 10px;
+  overflow-x: auto; scrollbar-width: none;
+}
+#attachments-gallery::-webkit-scrollbar { display: none; }
+#attachments-gallery.has-files {
+  padding: 12px 12px 10px; margin-bottom: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 22px; box-shadow: 0 2px 12px rgba(0,0,0,.10);
+}
+.attachment-thumb-wrap { width: 76px; height: 76px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface2); }
+.attachment-thumb-wrap.is-doc { width: 168px; }
+.att-doc { display: grid; grid-template-columns: 38px 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; height: 100%; padding: 8px 10px; }
+.att-doc-icon { grid-row: 1 / 3; font-size: 30px; text-align: center; }
+.att-doc-name { font-size: 12.5px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: end; }
+.att-doc-meta { font-size: 11px; color: var(--text-muted); align-self: start; }
+.att-badge { position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; border-radius: 8px; padding: 2px 6px; }
+.remove-attachment-btn { top: -7px; right: -7px; width: 24px; height: 24px; font-size: 12px; }
+.edit-attachment-btn   { bottom: -7px; left: -7px; width: 26px; height: 26px; }
+
+/* ── 5. DRAG & DROP OVERLAY ──────────────────────────────── */
+#drop-overlay {
+  position: absolute; inset: 0; z-index: 80; display: none;
+  align-items: center; justify-content: center; padding: 20px;
+  background: rgba(214,58,124,.30); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+  pointer-events: none;
+}
+#drop-overlay.show { display: flex; animation: trayIn .15s ease; }
+.drop-card {
+  text-align: center; padding: 34px 40px; border-radius: 30px;
+  background: var(--surface); border: 3px dashed var(--accent); box-shadow: var(--shadow);
+}
+.drop-emoji { font-size: 46px; }
+.drop-title { font-size: 20px; font-weight: 800; color: var(--text-primary); margin-top: 6px; }
+.drop-sub { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+/* ── 6. DOCUMENT CARD INSIDE A CHAT BUBBLE ───────────────── */
+.doc-card {
+  display: flex; align-items: stretch;
+  margin-top: 6px; min-width: 220px; max-width: 290px;
+  background: rgba(127,127,127,.16); border: 1px solid rgba(127,127,127,.22);
+  border-radius: 16px; overflow: hidden;
+}
+.doc-card-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 11px 12px; color: inherit; text-decoration: none; }
+.doc-card-icon { font-size: 31px; flex-shrink: 0; }
+.doc-card-text { display: flex; flex-direction: column; min-width: 0; }
+.doc-card-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-card-meta { font-size: 12px; opacity: .78; margin-top: 2px; }
+.doc-card-dl { display: flex; align-items: center; justify-content: center; width: 46px; border-left: 1px solid rgba(127,127,127,.25); color: inherit; text-decoration: none; font-size: 18px; }
+.doc-card-dl:active, .doc-card-main:active { background: rgba(127,127,127,.18); }
+
+/* ── 7. LONG-PRESS BELONGS TO THE APP ────────────────────── */
+/* No Google "Search / Copy / Share" bar, no text-selection handles, no link/image callout inside the chat. */
+#chat-window, #chat-window * {
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (pointer: coarse) {
+  #chat-window, #chat-window * { -webkit-user-select: none; user-select: none; }
+}
+#chat-window img, #chat-window video, #chat-window a { -webkit-user-drag: none; user-drag: none; }
+/* typing areas stay fully selectable / pasteable */
+#message-input, input, textarea, .settings-input { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+
+/* ── 8. SMALL-SCREEN TWEAKS ──────────────────────────────── */
+@media (max-width: 360px) {
+  #input-area #composer-tray #action-buttons-wrapper { gap: 10px 2px; }
+  #input-area .tray-item .input-action-btn { width: 50px; height: 50px; font-size: 23px; }
+  .attachment-thumb-wrap.is-doc { width: 150px; }
+}
