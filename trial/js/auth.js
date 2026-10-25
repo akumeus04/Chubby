@@ -1,143 +1,139 @@
-// Login, logout and auth-state handling
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-import { auth, rtdb } from "./firebase.js";
-import { getDirectImageUrl } from "./helpers.js";
-import { buildEmojiPicker } from "./emoji.js";
-import { renderSavedRepliesSettings } from "./saved-replies.js";
-import { setupPresence, setupTypingIndicator } from "./presence.js";
-import { initNotifications } from "./notifications.js";
-import { applyTheme } from "./theme.js";
-import { state } from "./state.js";
+// js/auth.js — Google Authentication & SHA-256 Access Guard for Chubby Chat
 
-// ── LOGIN ─────────────────────────────────────────────────
-document.getElementById("login-btn").addEventListener("click", () => {
-  const btn = document.getElementById("login-btn");
-  const email = document.getElementById("email").value.trim();
-  const pass  = document.getElementById("password").value;
-  
-  if (!email || !pass) { 
-    document.getElementById("login-error").innerText = "Please fill in all fields."; 
-    return; 
-  }
-  
-  btn.disabled = true; 
-  btn.textContent = "Signing in…";
-  
-  signInWithEmailAndPassword(auth, email, pass).catch(err => {
-    let friendlyError = err.message; // Default fallback
-    
-    // Check Firebase's specific error codes and translate them
-    if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
-      friendlyError = "Password is wrong, try again.";
-    } else if (err.code === "auth/user-not-found") {
-      friendlyError = "No account found with this email.";
-    } else if (err.code === "auth/invalid-email") {
-      friendlyError = "Please enter a valid email address.";
-    } else if (err.code === "auth/too-many-requests") {
-      friendlyError = "Too many failed attempts. Try again later.";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAc46X6MIXI-moZ2oTy2ShiDv6IrjhVQC4",
+  authDomain: "finance-app-23309.firebaseapp.com",
+  projectId: "finance-app-23309",
+};
+
+// Initialize or reuse existing app instance
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+// ==========================================
+// SECURITY & AUTH SETUP (SHA-256 RESTRICTED)
+// ==========================================
+// Lowercase SHA-256 hashes of allowed email addresses
+const ALLOWED_EMAIL_HASHES = [
+  "24a8875545b9c0867169cc58a471fd522134a0c8ac795110f4111a9fbdae7d14",
+  // Add partner's SHA-256 hash below if needed:
+  // "partner_email_hash_here"
+];
+
+async function hashEmail(email) {
+  if (!email) return "";
+  const msgBuffer = new TextEncoder().encode(email.toLowerCase().trim());
+  const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+const GOOGLE_BTN_HTML = `<img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style="width: 20px; height: 20px;"> <span>Sign in with Google</span>`;
+
+// ── AUTH STATE LISTENER ──────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+  const btn = document.getElementById("googleLoginBtn");
+  const errDiv = document.getElementById("login-error");
+  const loginScreen = document.getElementById("login-screen");
+  const chatUi = document.getElementById("chat-ui");
+
+  if (user) {
+    const userHash = await hashEmail(user.email || "");
+
+    // 1. Check if authenticated account is authorized
+    if (!ALLOWED_EMAIL_HASHES.includes(userHash)) {
+      await signOut(auth);
+      if (errDiv) {
+        errDiv.textContent = "Access Denied: Account not authorized.";
+        errDiv.style.display = "block";
+      }
+      if (btn) {
+        btn.innerHTML = GOOGLE_BTN_HTML;
+        btn.disabled = false;
+      }
+      return;
     }
 
-    document.getElementById("login-error").innerText = friendlyError;
-    btn.disabled = false; 
-    btn.textContent = "Sign In";
-  });
-});
+    // 2. Hide Login Card and Reveal Chat UI
+    if (loginScreen) loginScreen.style.display = "none";
+    if (chatUi) {
+      chatUi.style.display = "flex";
+      chatUi.classList.add("visible");
+    }
+    if (errDiv) errDiv.style.display = "none";
 
-document.getElementById("password").addEventListener("keydown", e => { 
-  if (e.key === "Enter") document.getElementById("login-btn").click(); 
-});
+    // 3. Connect User instance with chat.js bridge
+    if (window.chatBridge) {
+      window.chatBridge.getCurrentUser = () => auth.currentUser;
+    }
 
-document.getElementById("forgot-password-btn").addEventListener("click", () => {
-  const email = document.getElementById("email").value.trim();
-  const errEl = document.getElementById("login-error");
-  if (!email) { 
-    errEl.style.color = "var(--danger)"; 
-    errEl.innerText = "Enter your email above first."; 
-    return; 
-  }
-  sendPasswordResetEmail(auth, email).then(() => { 
-    errEl.style.color = "var(--online)"; 
-    errEl.innerText = "Reset email sent! Check your inbox."; 
-  }).catch(err => { 
-    errEl.style.color = "var(--danger)"; 
-    errEl.innerText = err.message; 
-  });
-});
+    // 4. Update Sidebar with Google Profile information
+    const sbName = document.getElementById("sidebar-name");
+    const sbAvatar = document.getElementById("sidebar-avatar");
+    if (sbName) sbName.textContent = user.displayName || user.email.split("@")[0];
+    if (sbAvatar && user.photoURL) {
+      sbAvatar.innerHTML = `<img src="${user.photoURL}" alt="avatar" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`;
+    }
 
-// ── LOGOUT ────────────────────────────────────────────────
-async function doLogout() {
-  // 1. Ask the user for confirmation first
-  const isSure = confirm("Are you sure you want to log out?");
-  
-  // 2. If they click "Cancel", stop the function right here
-  if (!isSure) return; 
-
-  // 3. If they click "OK", proceed with the logout
-  if (state.currentUser) {
-    await set(ref(rtdb, "/status/" + state.currentUser.uid), { state: "offline" });
-  }
-  await signOut(auth);
-  window.location.reload();
-}
-document.getElementById("logout-btn").addEventListener("click", doLogout);
-document.getElementById("sidebar-logout-btn")?.addEventListener("click", doLogout);
-
-
-// ── AUTH STATE ────────────────────────────────────────────
-onAuthStateChanged(auth, user => {
-  if (user) {
-    state.currentUser = user;
-    document.getElementById("login-screen").style.display = "none";
-    document.getElementById("chat-ui").classList.add("active");
-    const name = user.displayName || user.email.split("@")[0];
-    document.getElementById("header-name").innerText = name;
-    document.getElementById("profile-nickname").value = user.displayName || "";
-    document.getElementById("profile-photo").value    = user.photoURL || "";
-    document.getElementById("sidebar-name").textContent = name;
-
-    // 🔒 NEW: Fetch the secret passcode from Firebase privately
-    // This stays in the computer's memory and isn't visible in the source code.
-    onValue(ref(rtdb, "upload_config/passcode"), (snap) => {
-      state.uploadSecret = snap.val();
-    });
-
-    // Sidebar avatar
-    const photo = getDirectImageUrl(user.photoURL || "");
-    const sa = document.getElementById("sidebar-avatar");
-    if (photo && (photo.startsWith("http") || photo.startsWith("data:"))) {
-      sa.innerHTML = `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-    } else { sa.textContent = user.photoURL || "👤"; }
-
-    setupPresence(user.uid);
-    setupTypingIndicator(user.uid);
-    buildEmojiPicker();
-    renderSavedRepliesSettings();
-    
-    // chat.js is a separate module; if it hasn't finished loading yet, wait for it.
-    startChatWhenReady();
-
-    applyTheme(localStorage.getItem("messenger-theme") === "light");
-	
-// Trigger the Native notification prompt!
-initNotifications(user);
-	
+    // 5. Trigger chat messages loading
+    if (typeof window.loadChat === "function") {
+      window.loadChat();
+    }
   } else {
-    state.currentUser = null;
-    state.uploadSecret = ""; // 🔒 SECURITY: Wipe the secret from memory on logout
-    document.getElementById("login-screen").style.display = "flex";
-    document.getElementById("chat-ui").classList.remove("active");
-    document.getElementById("login-btn").disabled = false;
-    document.getElementById("login-btn").textContent = "Sign In";
+    // Show Login Card and Hide Chat UI
+    if (loginScreen) loginScreen.style.display = "flex";
+    if (chatUi) {
+      chatUi.style.display = "none";
+      chatUi.classList.remove("visible");
+    }
+    if (btn) {
+      btn.innerHTML = GOOGLE_BTN_HTML;
+      btn.disabled = false;
+    }
   }
 });
 
-function startChatWhenReady(tries = 0) {
-  if (typeof window.loadChat === "function") {
-    try { window.loadChat(); } catch (e) { console.error("loadChat failed:", e); }
-  } else if (tries < 100) {
-    setTimeout(() => startChatWhenReady(tries + 1), 100);   // retry for up to ~10s
-  } else {
-    console.error("chat.js did not load - messages cannot be shown.");
+// ── GOOGLE SIGN-IN HANDLER ───────────────────────────────
+window.handleGoogleLogin = async function () {
+  const provider = new GoogleAuthProvider();
+  const btn = document.getElementById("googleLoginBtn");
+  const errDiv = document.getElementById("login-error");
+
+  if (btn) {
+    btn.innerHTML = "Verifying...";
+    btn.disabled = true;
   }
-}
+  if (errDiv) errDiv.style.display = "none";
+
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (error) {
+    if (errDiv) {
+      errDiv.textContent = "Authentication failed: " + error.message;
+      errDiv.style.display = "block";
+    }
+    if (btn) {
+      btn.innerHTML = GOOGLE_BTN_HTML;
+      btn.disabled = false;
+    }
+  }
+};
+
+// ── LOGOUT HANDLER ───────────────────────────────────────
+window.logout = async function () {
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.error("Sign out error:", e);
+  }
+};
+
+// Attach sign-out triggers to Chubby Chat buttons
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("sidebar-logout-btn")?.addEventListener("click", window.logout);
+  document.getElementById("logout-btn")?.addEventListener("click", window.logout);
+});
