@@ -36,6 +36,7 @@ onAuthStateChanged(auth, async (user) => {
 
     // 1. Check if authenticated account is authorized
     if (!ALLOWED_EMAIL_HASHES.includes(userHash)) {
+		console.warn("🚨 YOUR NEW EMAIL HASH IS: ", userHash);
       await signOut(auth);
       if (errDiv) {
         errDiv.textContent = "Access Denied: Account not authorized.";
