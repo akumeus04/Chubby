@@ -6,6 +6,7 @@ import { getDirectImageUrl } from "./helpers.js";
 import { buildEmojiPicker } from "./emoji.js";
 import { renderSavedRepliesSettings } from "./saved-replies.js";
 import { setupPresence, setupTypingIndicator } from "./presence.js";
+import { initNotifications } from "./notifications.js";
 import { applyTheme } from "./theme.js";
 import { state } from "./state.js";
 
@@ -119,6 +120,7 @@ onAuthStateChanged(auth, user => {
     applyTheme(localStorage.getItem("messenger-theme") === "light");
 	
 // Trigger the Native notification prompt!
+initNotifications(user);
 	
   } else {
     state.currentUser = null;
