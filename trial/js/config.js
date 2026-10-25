@@ -12,7 +12,7 @@ export const firebaseConfig = {
 };
 
 
-export const appsScriptUrl = "https://script.google.com/macros/s/AKfycbwAWOQoiaNOo51dL9_s04D9L8waDNV--Euoz8NR_csyhJX635jf48oOZyYoxDyCf6vr/exec"; 
+export const appsScriptUrl = "https://script.google.com/macros/s/AKfycbxPaNFqmGhv6jrY9bH22JTZ4kS62B6N13sKLSWvPVC03yRLxFHx4im10XTH0hjfsvfdiA/exec"; 
 
 export const GIPHY_API_KEY = "CUKuNGhZYEuz3HWS5ybpViRmpoDWm8P2";
 
