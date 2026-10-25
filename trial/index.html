@@ -11,9 +11,8 @@
   <title>Chubby Chat 🌸</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&display=swap" rel="stylesheet">
-  
 
-  <!-- Styles (load order matters: later files build on earlier ones) -->
+  <!-- Styles -->
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/chat-extras.css">
   <link rel="stylesheet" href="css/layout.css">
@@ -22,9 +21,40 @@
   <link rel="stylesheet" href="css/banners.css">
   <link rel="stylesheet" href="css/revamp.css">
   <link rel="stylesheet" href="css/features.css">
+
+  <style>
+    /* Google Sign-in Button Styling */
+    .google-sign-in-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      padding: 13px 18px;
+      background: #ffffff;
+      color: #1f1f1f;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 14px;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+      transition: all 0.2s ease;
+    }
+    .google-sign-in-btn:hover {
+      background: #f8f9fa;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    }
+    .google-sign-in-btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+  </style>
 </head>
 <body>
-
 
 <div id="install-banner">
   <div class="install-text" id="install-text">Install Chubby Chat to your home screen for the best experience.</div>
@@ -38,14 +68,8 @@
 </div>
 
 <div id="lightbox">
-  <!-- Close button — top-LEFT, always visible -->
   <span id="lightbox-close" onclick="window.closeLightbox()"
-    style="position:absolute;top:16px;left:16px;z-index:1002;
-           background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.25);
-           color:#fff;font-size:20px;width:44px;height:44px;display:flex;
-           align-items:center;justify-content:center;border-radius:50%;
-           cursor:pointer;backdrop-filter:blur(8px);">✕</span>
-  <!-- Action buttons — top-RIGHT -->
+    style="position:absolute;top:16px;left:16px;z-index:1002;background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.25);color:#fff;font-size:20px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;backdrop-filter:blur(8px);">✕</span>
   <div id="lightbox-actions" style="position:absolute;top:16px;right:16px;display:flex;gap:8px;z-index:1001;">
     <button id="lightbox-edit-btn" onclick="window.lightboxEditImage()" style="display:none;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:14px;font-weight:600;padding:8px 14px;border-radius:20px;cursor:pointer;backdrop-filter:blur(8px);">✏️ Edit</button>
     <button id="lightbox-download-btn" onclick="window.lightboxDownload()" style="display:none;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:14px;padding:8px 14px;border-radius:20px;cursor:pointer;backdrop-filter:blur(8px);">⬇️</button>
@@ -53,32 +77,31 @@
   <div id="lightbox-body"></div>
 </div>
 
+<!-- GOOGLE AUTHENTICATION SCREEN -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
       <div class="login-logo-icon">
-  <img src="./icon-192.png" alt="logo" style="width:80px;height:80px;border-radius:22px;object-fit:cover;">
-</div>
+        <img src="./icon-192.png" alt="logo" style="width:80px;height:80px;border-radius:22px;object-fit:cover;">
+      </div>
       <div>
         <div class="login-logo-text">Chubby Chat</div>
         <div class="login-logo-sub">My Tsabby-Tsabs 🌸</div>
       </div>
     </div>
-    <div class="login-input-wrap">
-      <label class="login-label">Email</label>
-      <input type="email" id="email" class="login-input" placeholder="you@example.com" autocomplete="email">
+
+    <div style="margin: 24px 0 10px;">
+      <button id="googleLoginBtn" class="google-sign-in-btn" type="button" onclick="window.handleGoogleLogin()">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style="width: 20px; height: 20px;">
+        <span>Sign in with Google</span>
+      </button>
     </div>
-    <div class="login-input-wrap">
-      <label class="login-label">Password</label>
-      <input type="password" id="password" class="login-input" placeholder="••••••••" autocomplete="current-password">
-      <span class="forgot-password" id="forgot-password-btn">Forgot Password?</span>
-    </div>
-    <button id="login-btn" class="btn-primary">Sign In</button>
-    <p id="login-error"></p>
+
+    <p id="login-error" style="display:none; color:var(--danger, #ff4d4f); font-size:13px; margin-top:12px; text-align:center; font-weight:600;"></p>
   </div>
 </div>
 
-<div id="chat-ui">
+<div id="chat-ui" style="display:none;">
   <div id="sidebar">
     <div id="sidebar-header" style="display: flex; align-items: center; gap: 12px; padding: 20px;">
       <img src="./icon-192.png" alt="logo" style="width:36px; height:36px; border-radius:10px; object-fit:cover;">
@@ -118,13 +141,12 @@
   </div>
 
   <div id="chat-column">
-
     <div id="settings-panel">
       <div class="settings-header">
         <button class="icon-btn" id="close-settings-btn">←</button>
         <div class="settings-title">Profile & Settings</div>
       </div>
-<div class="settings-body">
+      <div class="settings-body">
         
         <div class="avatar-upload-wrap" style="margin-bottom: 12px;">
           <div class="avatar-upload-preview" id="avatar-preview-wrap">
@@ -155,47 +177,43 @@
           <label class="toggle-switch"><input type="checkbox" id="theme-checkbox"><span class="toggle-track"></span></label>
         </div>
 
-
-<label class="settings-label" style="margin-top:8px;">Pushover Notifications</label>
+        <label class="settings-label" style="margin-top:8px;">Pushover Notifications</label>
         
-        <!-- NEW: Notification Sound Dropdown -->
-<div style="display:flex; gap:10px; margin-bottom: 10px;">
-  <select id="pushover-sound-select" class="settings-input" style="flex:1;">
-    <option value="pushover">Pushover (Default)</option>
-    <option value="bike">Bike</option>
-    <option value="bugle">Bugle</option>
-    <option value="cashregister">Cash Register</option>
-    <option value="classical">Classical</option>
-    <option value="cosmic">Cosmic</option>
-    <option value="falling">Falling</option>
-    <option value="gamelan">Gamelan</option>
-    <option value="incoming">Incoming</option>
-    <option value="intermission">Intermission</option>
-    <option value="magic">Magic</option>
-    <option value="mechanical">Mechanical</option>
-    <option value="pianobar">Piano Bar</option>
-    <option value="siren">Siren</option>
-    <option value="spacealarm">Space Alarm</option>
-    <option value="tugboat">Tug Boat</option>
-    <option value="alien">Alien Alarm (Long)</option>
-    <option value="climb">Climb (Long)</option>
-    <option value="persistent">Persistent (Long)</option>
-    <option value="echo">Pushover Echo (Long)</option>
-    <option value="updown">Up Down (Long)</option>
-    <option value="none">None (Silent)</option>
-  </select>
-</div>
-<div style="display:flex; gap:10px;">
-  <button id="pushover-save-btn" class="btn-save" style="flex:1;">Save Sound</button>
-  <button id="pushover-test-btn" class="btn-save" style="flex:1; background:var(--surface2); color:var(--text-primary); border:1px solid var(--border);">Test Sound</button>
-</div>
-<div id="notif-status" style="font-size:12px; margin-top:8px;"></div>
-		
-		
+        <div style="display:flex; gap:10px; margin-bottom: 10px;">
+          <select id="pushover-sound-select" class="settings-input" style="flex:1;">
+            <option value="pushover">Pushover (Default)</option>
+            <option value="bike">Bike</option>
+            <option value="bugle">Bugle</option>
+            <option value="cashregister">Cash Register</option>
+            <option value="classical">Classical</option>
+            <option value="cosmic">Cosmic</option>
+            <option value="falling">Falling</option>
+            <option value="gamelan">Gamelan</option>
+            <option value="incoming">Incoming</option>
+            <option value="intermission">Intermission</option>
+            <option value="magic">Magic</option>
+            <option value="mechanical">Mechanical</option>
+            <option value="pianobar">Piano Bar</option>
+            <option value="siren">Siren</option>
+            <option value="spacealarm">Space Alarm</option>
+            <option value="tugboat">Tug Boat</option>
+            <option value="alien">Alien Alarm (Long)</option>
+            <option value="climb">Climb (Long)</option>
+            <option value="persistent">Persistent (Long)</option>
+            <option value="echo">Pushover Echo (Long)</option>
+            <option value="updown">Up Down (Long)</option>
+            <option value="none">None (Silent)</option>
+          </select>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button id="pushover-save-btn" class="btn-save" style="flex:1;">Save Sound</button>
+          <button id="pushover-test-btn" class="btn-save" style="flex:1; background:var(--surface2); color:var(--text-primary); border:1px solid var(--border);">Test Sound</button>
+        </div>
+        <div id="notif-status" style="font-size:12px; margin-top:8px;"></div>
 
         <div class="sidebar-divider" style="margin:24px 0;"></div>
 
-<label class="settings-label" style="margin-top:4px;">💅 Chat Background</label>
+        <label class="settings-label" style="margin-top:4px;">💅 Chat Background</label>
         <div class="bg-upload-wrap">
           <div class="bg-preview-label">Upload a custom background image</div>
           <div class="bg-preview-box" id="bg-preview-box" onclick="triggerNativeBackgroundPicker()" style="cursor: pointer;">
@@ -241,36 +259,33 @@
       <div style="font-size:14px; font-weight:600; color:var(--text-muted); margin-bottom:4px;">Search Chat History</div>
       <div style="display:flex; gap:8px;">
         <input type="text" id="search-input" placeholder="Search messages…" style="flex:1; padding:10px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text-primary); font-family:var(--font); outline:none;">
-        <button id="search-go-btn" style="padding:10px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; flex-shrink:0; transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Search</button>
+        <button id="search-go-btn" style="padding:10px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; flex-shrink:0; transition:opacity 0.15s;">Search</button>
       </div>
       <div id="search-results" style="overflow-y:auto; max-height:280px; display:flex; flex-direction:column; gap:8px; margin-top:4px;"></div>
     </div>
 
     <div id="chat-window"></div>
-
     <div id="status-text"></div>
 
     <div id="input-area">
-<div id="reply-banner">
+      <div id="reply-banner">
         <img id="reply-banner-media" class="reply-banner-media" src="">
         <div class="reply-banner-text">Replying to <b id="reply-to-name"></b>: <span id="reply-to-text"></span></div>
         <button id="cancel-reply-btn">✕</button>
       </div>
 
       <div id="edit-banner">✏️ Editing message <button id="cancel-edit-btn">✕</button></div>
-
       <div id="attachments-gallery"></div>
 
-<div id="input-bar">
+      <div id="input-bar">
         <button id="expand-btn" type="button" title="More" aria-label="More options" aria-expanded="false">+</button>
-
         <div class="input-field-wrap">
           <textarea id="message-input" placeholder="Message…" rows="1" enterkeyhint="send" autocapitalize="sentences"></textarea>
         </div>
         <button id="send-btn" type="button" title="Send" aria-label="Send">➤</button>
       </div>
 
-      <!-- Tray: opens UNDER the message box when you press + -->
+      <!-- Composers & Attachments Tray -->
       <div id="composer-tray">
         <div id="action-buttons-wrapper">
           <div class="tray-item"><button class="input-action-btn" id="emoji-btn" type="button" title="Emoji">😊</button><span>Emoji</span></div>
@@ -282,49 +297,46 @@
           <div class="tray-item"><div class="input-action-btn" title="Documents & files">📄<input type="file" id="doc-upload" accept="*/*" multiple></div><span>Document</span></div>
         </div>
 
-      <div class="emoji-picker-panel" id="emoji-panel"></div>
+        <div class="emoji-picker-panel" id="emoji-panel"></div>
 
-      <div class="gif-panel" id="gif-panel">
-        <div class="gif-search-wrap">
-          <input type="text" class="gif-search-input" id="gif-search-input" placeholder="Search GIFs…">
-          <button class="gif-search-btn" id="gif-search-btn">Search</button>
+        <div class="gif-panel" id="gif-panel">
+          <div class="gif-search-wrap">
+            <input type="text" class="gif-search-input" id="gif-search-input" placeholder="Search GIFs…">
+            <button class="gif-search-btn" id="gif-search-btn">Search</button>
+          </div>
+          <div class="gif-grid" id="gif-grid"><div class="gif-loading">Search for GIFs above</div></div>
+          <div class="gif-powered">Powered by GIPHY</div>
         </div>
-        <div class="gif-grid" id="gif-grid"><div class="gif-loading">Search for GIFs above</div></div>
-        <div class="gif-powered">Powered by GIPHY</div>
-      </div>
 
-      <div class="saved-replies-panel" id="saved-replies-panel">
-        <div class="saved-replies-panel-title">⚡ Quick Replies</div>
-        <div class="saved-replies-scroll" id="saved-replies-scroll"></div>
-        <div class="add-saved-reply-wrap" style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px;">
-          <input type="text" id="chat-add-reply-input" class="add-saved-reply-input" placeholder="Save a new reply…">
-          <button id="chat-add-reply-btn" class="add-saved-reply-btn">Save</button>
+        <div class="saved-replies-panel" id="saved-replies-panel">
+          <div class="saved-replies-panel-title">⚡ Quick Replies</div>
+          <div class="saved-replies-scroll" id="saved-replies-scroll"></div>
+          <div class="add-saved-reply-wrap" style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px;">
+            <input type="text" id="chat-add-reply-input" class="add-saved-reply-input" placeholder="Save a new reply…">
+            <button id="chat-add-reply-btn" class="add-saved-reply-btn">Save</button>
+          </div>
         </div>
-      </div>
       </div>
     </div>
-
-
-
+  </div>
+</div>
 
 <div id="debug-console" style="position: fixed; top: 0; left: 0; width: 100%; max-height: 40%; background: rgba(0,0,0,0.85); color: #ff4444; z-index: 9999; overflow-y: auto; font-family: monospace; font-size: 14px; padding: 10px; display: none; border-bottom: 3px solid #ff4444;">
   <strong style="color: white;">System Log:</strong><br>
 </div>
 
-
 <!-- Scripts -->
 <script>
-  // Friendly warning: ES modules (js/main.js) cannot load from file:// — serve the folder over http(s).
   if (location.protocol === 'file:') {
     document.body.insertAdjacentHTML('afterbegin',
-      '<div style="position:fixed;inset:0;z-index:99999;background:#1a0d12;color:#fce4ech;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif">' +
-      '<div><h2>Open this app through a web server</h2><p style="margin-top:12px;opacity:.8">Browsers block JavaScript modules on file:// pages, so login cannot work.<br>Run <code>python -m http.server</code> in this folder and open <code>http://localhost:8000</code>, or upload the folder to your hosting.</p></div></div>');
+      '<div style="position:fixed;inset:0;z-index:99999;background:#1a0d12;color:#fce4ec;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif">' +
+      '<div><h2>Open this app through a web server</h2><p style="margin-top:12px;opacity:.8">Browsers block JavaScript modules on file:// pages.<br>Run <code>python -m http.server</code> in this folder and open <code>http://localhost:8000</code>.</p></div></div>');
   }
 </script>
 <script src="js/debug-console.js"></script>
 <script src="paint-editor.js"></script>
+<script type="module" src="js/auth.js"></script>
 <script type="module" src="js/main.js"></script>
 <script type="module" src="chat.js"></script>
-
 </body>
 </html>
