@@ -9,11 +9,10 @@ import { addLongPressAndRightClick, addReaction, showContextMenu, addSwipeToRepl
 import { msgInput } from "./input-bar.js";
 import { renderHeaderStatus } from "./presence.js";
 import { mediaUpload, renderAttachmentGallery } from "./attachments.js";
-import { getSound, showInAppBanner, notifyPartner, sendPushoverError, sendPushoverNotification } from "./notifications.js";
+import { getSound, showInAppBanner, notifyPartner } from "./notifications.js";
 import { formatMessageText } from "./formatter.js";
 import { buildMediaHtml } from "./media.js";
 import { state } from "./state.js";
-export { sendPushoverError, sendPushoverNotification };
 
 // ── CLIENT-SIDE IMAGE COMPRESSION (HTML5 CANVAS) ──────────
 /**
@@ -158,40 +157,23 @@ window.chatBridge = {
   triggerEmojiAnimation: (txt) => triggerEmojiAnimation(txt),
   showContextMenu: (e, id, isMe, data) => showContextMenu(e, id, isMe, data),
   addReaction: (id, em) => addReaction(id, em),
-  sendPushoverError: (err, opts) => sendPushoverError(err, opts),
-  sendPushoverNotification: (opts) => sendPushoverNotification(opts),
   setReplyState: (id, txt, name, med, mime) => {
     state.replyingToDocId = id; state.replyingToText = txt; state.replyingToName = name; state.replyingToMedia = med; state.replyingToMime = mime;
   }
 };
 
 // ── CANCEL REPLY BUTTON ──
-function handleCancelReply() {
+document.getElementById("cancel-reply-btn").addEventListener("click", () => {
   state.replyingToDocId = null;
   state.replyingToMedia = "";
   state.replyingToMime = "";
-  const banner = document.getElementById("reply-banner");
-  if (banner) banner.classList.remove("visible");
-}
-
-const cancelReplyBtn = typeof document !== "undefined" ? document.getElementById("cancel-reply-btn") : null;
-if (cancelReplyBtn) {
-  cancelReplyBtn.addEventListener("click", handleCancelReply);
-}
-
-if (typeof document !== "undefined") {
-  document.addEventListener("click", (e) => {
-    const target = e.target;
-    if (target && (target.id === "cancel-reply-btn" || (target.closest && target.closest("#cancel-reply-btn")))) {
-      handleCancelReply();
-    }
-  });
-}
+  document.getElementById("reply-banner").classList.remove("visible");
+});
 
 // ── SEND MESSAGE ──────────────────────────────────────────
-async function handleSendMessage() {
-  const textVal = (msgInput && msgInput.value ? msgInput.value.trim() : "");
-  const filesToSend = [...(state.selectedFiles || [])]; // Make a copy of the selected files array
+document.getElementById("send-btn").addEventListener("click", async () => {
+  const textVal = msgInput.value.trim();
+  const filesToSend = [...state.selectedFiles]; // Make a copy of the selected files array
   const statusEl = document.getElementById("status-text");
   
   if (!textVal && filesToSend.length === 0) return;
@@ -201,34 +183,23 @@ async function handleSendMessage() {
     try {
       await updateDoc(doc(db, "messages", state.editingDocId), { text: textVal, edited: true });
       state.editingDocId = null;
-      if (msgInput) {
-        msgInput.value = "";
-        if (msgInput.style) msgInput.style.height = "auto";
-      }
-      const editBanner = document.getElementById("edit-banner");
-      if (editBanner) editBanner.classList.remove("visible");
-    } catch(e) { 
-      console.error(e);
-      sendPushoverError(`Failed to update edited message: ${e?.message || e}`, { context: "Edit Message" });
-    }
+      msgInput.value = ""; msgInput.style.height = "auto";
+      document.getElementById("edit-banner").classList.remove("visible");
+    } catch(e) { console.error(e); }
     return;
   }
 
   // 1. INSTANT UI CLEAR (Makes typing feel incredibly fast)
-  if (msgInput) {
-    msgInput.value = ""; 
-    if (msgInput.style) msgInput.style.height = "auto";
-  }
+  msgInput.value = ""; 
+  msgInput.style.height = "auto";
   state.selectedFiles = []; // Clear the multiple attachments array
   renderAttachmentGallery(); // Instantly hide the preview thumbnails
-  if (state.currentUser && state.currentUser.uid) {
-    set(ref(rtdb, "/typing/" + state.currentUser.uid), false);
-  }
+  set(ref(rtdb, "/typing/" + state.currentUser.uid), false);
 
   const basePayload = { 
-    senderId: state.currentUser ? state.currentUser.uid : "user", 
-    senderName: state.currentUser ? (state.currentUser.displayName || state.currentUser.email.split("@")[0]) : "User", 
-    senderPhoto: (state.currentUser && state.currentUser.photoURL) || "", 
+    senderId: state.currentUser.uid, 
+    senderName: state.currentUser.displayName || state.currentUser.email.split("@")[0], 
+    senderPhoto: state.currentUser.photoURL || "", 
     timestamp: serverTimestamp() 
   };
 
@@ -247,24 +218,17 @@ async function handleSendMessage() {
   state.replyingToDocId = null;
   state.replyingToMedia = "";
   state.replyingToMime = "";
-  const replyBanner = document.getElementById("reply-banner");
-  if (replyBanner) replyBanner.classList.remove("visible");
+  document.getElementById("reply-banner").classList.remove("visible");
 
   // 2. Send the text immediately
   if (textVal) {
-    try {
-      await addDoc(collection(db, "messages"), { ...basePayload, text: textVal });
-      notifyPartner(textVal);
-    } catch (e) {
-      console.error("Text message send error:", e);
-      sendPushoverError(`Failed to send message: ${e?.message || e}`, { context: "Send Message" });
-    }
+    await addDoc(collection(db, "messages"), { ...basePayload, text: textVal });
+    notifyPartner(textVal);
   }
 
   // 3. Upload files sequentially in the background & bundle into a single album bubble
   if (filesToSend.length > 0) {
-    const sendBtnEl = document.getElementById("send-btn");
-    if (sendBtnEl) sendBtnEl.disabled = true; // Prevent spamming the upload button
+    document.getElementById("send-btn").disabled = true; // Prevent spamming the upload button
     const uploadedMedia = [];
     
     for (let i = 0; i < filesToSend.length; i++) {
@@ -273,27 +237,22 @@ async function handleSendMessage() {
       
       // For large non-images (videos, archives), enforce limit
       if (!isImg && fileVal.size > 25 * 1024 * 1024) { 
-        const sizeMb = (fileVal.size / (1024 * 1024)).toFixed(1);
-        if (statusEl) statusEl.innerHTML = `⚠ Skipped ${fileVal.name} (too large, max 25MB).`; 
-        sendPushoverError(`File upload skipped: "${fileVal.name}" is ${sizeMb}MB (exceeds 25MB limit)`, { context: "Upload Size Limit" });
+        statusEl.innerHTML = `⚠ Skipped ${fileVal.name} (too large, max 25MB).`; 
         continue; 
       }
       
       if (isImg) {
-        if (statusEl) statusEl.innerHTML = `<span class="loader"></span> Optimizing photo ${i + 1} of ${filesToSend.length}…`;
+        statusEl.innerHTML = `<span class="loader"></span> Optimizing photo ${i + 1} of ${filesToSend.length}…`;
       } else {
-        if (statusEl) statusEl.innerHTML = `<span class="loader"></span> Preparing file ${i + 1} of ${filesToSend.length}…`;
+        statusEl.innerHTML = `<span class="loader"></span> Preparing file ${i + 1} of ${filesToSend.length}…`;
       }
       
       try {
         // ✨ HTML5 Canvas photo compression (1600px max dimension @ 82% quality)
         const mediaPayload = await compressImageForUpload(fileVal, 1600, 0.82);
-        if (!mediaPayload.base64Data) {
-          sendPushoverError(`Could not read or compress "${fileVal.name}" for upload`, { context: "Photo Optimization" });
-          continue;
-        }
+        if (!mediaPayload.base64Data) continue;
 
-        if (statusEl) statusEl.innerHTML = `<span class="loader"></span> Uploading ${i + 1} of ${filesToSend.length} (${(mediaPayload.fileSize / 1024).toFixed(0)} KB)…`;
+        statusEl.innerHTML = `<span class="loader"></span> Uploading ${i + 1} of ${filesToSend.length} (${(mediaPayload.fileSize / 1024).toFixed(0)} KB)…`;
 
         // Send optimized payload to Google Apps Script
         const res = await fetch(appsScriptUrl, { 
@@ -317,128 +276,83 @@ async function handleSendMessage() {
             fileSize: mediaPayload.fileSize || 0
           });
         } else {
-          const errDetail = result.error || "Unknown server error";
-          console.error("Upload failed for", mediaPayload.fileName, errDetail);
-          if (statusEl) statusEl.innerHTML = `⚠ Upload failed for ${mediaPayload.fileName}: ${errDetail}`;
-          sendPushoverError(`Drive upload failed for "${mediaPayload.fileName}": ${errDetail}`, { context: "Google Drive Upload" });
+          console.error("Upload failed for", mediaPayload.fileName, result.error);
         }
       } catch(e) { 
         console.error("Network error uploading", fileVal.name, e); 
-        if (statusEl) statusEl.innerHTML = `⚠ Network error uploading ${fileVal.name}`;
-        sendPushoverError(`Network exception uploading "${fileVal.name}": ${e?.message || e}`, { context: "Network Upload" });
       }
     }
 
     // ✨ GROUP MULTIPLE PHOTOS INTO A SINGLE BUBBLE
-    try {
-      if (uploadedMedia.length === 1) {
-        // Single file - standard format
-        const item = uploadedMedia[0];
-        await addDoc(collection(db, "messages"), { 
-          ...basePayload, 
-          mediaUrl: item.url, 
-          mediaUrls: [item.url],
-          mimeType: item.mimeType,
-          fileName: item.fileName,
-          fileSize: item.fileSize
-        }); 
-        notifyPartner(item.mimeType.startsWith("image/") ? "📷 Sent you a photo" : item.mimeType.startsWith("video/") ? "🎥 Sent you a video" : "📎 " + (item.fileName || "Sent you a file"));
-      } else if (uploadedMedia.length > 1) {
-        // Multiple files - single bundled message with mediaUrls & mediaItems
-        const urls = uploadedMedia.map(m => m.url);
-        const allImages = uploadedMedia.every(m => m.mimeType && m.mimeType.startsWith("image/") && !m.mimeType.includes("gif"));
-        const allVideos = uploadedMedia.every(m => m.mimeType && m.mimeType.startsWith("video/"));
+    if (uploadedMedia.length === 1) {
+      // Single file - standard format
+      const item = uploadedMedia[0];
+      await addDoc(collection(db, "messages"), { 
+        ...basePayload, 
+        mediaUrl: item.url, 
+        mediaUrls: [item.url],
+        mimeType: item.mimeType,
+        fileName: item.fileName,
+        fileSize: item.fileSize
+      }); 
+      notifyPartner(item.mimeType.startsWith("image/") ? "📷 Sent you a photo" : item.mimeType.startsWith("video/") ? "🎥 Sent you a video" : "📎 " + (item.fileName || "Sent you a file"));
+    } else if (uploadedMedia.length > 1) {
+      // Multiple files - single bundled message with mediaUrls & mediaItems
+      const urls = uploadedMedia.map(m => m.url);
+      const allImages = uploadedMedia.every(m => m.mimeType && m.mimeType.startsWith("image/") && !m.mimeType.includes("gif"));
+      const allVideos = uploadedMedia.every(m => m.mimeType && m.mimeType.startsWith("video/"));
 
-        let bundleMime = "image/album";
-        let bundleName = `${uploadedMedia.length} photos`;
-        let notifyText = `📷 Sent an album (${uploadedMedia.length} photos)`;
+      let bundleMime = "image/album";
+      let bundleName = `${uploadedMedia.length} photos`;
+      let notifyText = `📷 Sent an album (${uploadedMedia.length} photos)`;
 
-        if (allImages) {
-          bundleMime = "image/album";
-          bundleName = `${uploadedMedia.length} photos`;
-          notifyText = `📷 Sent an album (${uploadedMedia.length} photos)`;
-        } else if (allVideos) {
-          bundleMime = "video/bundle";
-          bundleName = `${uploadedMedia.length} videos`;
-          notifyText = `🎥 Sent ${uploadedMedia.length} videos`;
-        } else {
-          bundleMime = "files/bundle";
-          bundleName = `${uploadedMedia.length} files`;
-          notifyText = `📎 Sent ${uploadedMedia.length} files`;
-        }
-
-        await addDoc(collection(db, "messages"), { 
-          ...basePayload, 
-          mediaUrl: urls[0],
-          mediaUrls: urls,
-          mediaItems: uploadedMedia,
-          mimeType: bundleMime,
-          fileName: bundleName,
-          fileSize: uploadedMedia.reduce((acc, m) => acc + (m.fileSize || 0), 0)
-        }); 
-        notifyPartner(notifyText);
+      if (allImages) {
+        bundleMime = "image/album";
+        bundleName = `${uploadedMedia.length} photos`;
+        notifyText = `📷 Sent an album (${uploadedMedia.length} photos)`;
+      } else if (allVideos) {
+        bundleMime = "video/bundle";
+        bundleName = `${uploadedMedia.length} videos`;
+        notifyText = `🎥 Sent ${uploadedMedia.length} videos`;
+      } else {
+        bundleMime = "files/bundle";
+        bundleName = `${uploadedMedia.length} files`;
+        notifyText = `📎 Sent ${uploadedMedia.length} files`;
       }
-    } catch(e) {
-      console.error("Error creating Firestore message for uploaded media:", e);
-      sendPushoverError(`Failed to save uploaded media in Firestore: ${e?.message || e}`, { context: "Firestore Save" });
+
+      await addDoc(collection(db, "messages"), { 
+        ...basePayload, 
+        mediaUrl: urls[0],
+        mediaUrls: urls,
+        mediaItems: uploadedMedia,
+        mimeType: bundleMime,
+        fileName: bundleName,
+        fileSize: uploadedMedia.reduce((acc, m) => acc + (m.fileSize || 0), 0)
+      }); 
+      notifyPartner(notifyText);
     }
     
-    if (statusEl) statusEl.innerText = "";
-    const finishBtn = document.getElementById("send-btn");
-    if (finishBtn) finishBtn.disabled = false;
+    statusEl.innerText = "";
+    document.getElementById("send-btn").disabled = false;
   }
-}
-
-// Bind send button safely
-const sendBtn = typeof document !== "undefined" ? document.getElementById("send-btn") : null;
-if (sendBtn) {
-  sendBtn.addEventListener("click", handleSendMessage);
-}
-
-// Global click delegation for send-btn
-if (typeof document !== "undefined") {
-  document.addEventListener("click", (e) => {
-    const target = e.target;
-    if (target && (target.id === "send-btn" || (target.closest && target.closest("#send-btn")))) {
-      handleSendMessage();
-    }
-  });
-}
+});
 
 // Allow adding quick replies directly from the chat popup
-const chatAddReplyBtn = typeof document !== "undefined" ? document.getElementById("chat-add-reply-btn") : null;
-if (chatAddReplyBtn) {
-  chatAddReplyBtn.addEventListener("click", () => {
-    const inputEl = document.getElementById("chat-add-reply-input");
-    const val = inputEl ? inputEl.value.trim() : "";
-    if (!val) return;
-    const arr = getSavedReplies(); arr.push(val); saveSavedReplies(arr);
-    if (inputEl) inputEl.value = "";
-    renderSavedRepliesSettings(); 
-    renderSavedRepliesPanel();
-  });
-}
-
-const chatAddReplyInput = typeof document !== "undefined" ? document.getElementById("chat-add-reply-input") : null;
-if (chatAddReplyInput) {
-  chatAddReplyInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      const btn = document.getElementById("chat-add-reply-btn");
-      if (btn) btn.click();
-    }
-  });
-}
+document.getElementById("chat-add-reply-btn").addEventListener("click", () => {
+  const val = document.getElementById("chat-add-reply-input").value.trim();
+  if (!val) return;
+  const arr = getSavedReplies(); arr.push(val); saveSavedReplies(arr);
+  document.getElementById("chat-add-reply-input").value = "";
+  renderSavedRepliesSettings(); 
+  renderSavedRepliesPanel();
+});
+document.getElementById("chat-add-reply-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("chat-add-reply-btn").click();
+});
 
 function resetInputs() {
-  if (msgInput) {
-    msgInput.value = ""; 
-    if (msgInput.style) msgInput.style.height = "auto";
-  }
-  if (mediaUpload) mediaUpload.value = "";
-  const fileTag = document.getElementById("file-tag");
-  if (fileTag) fileTag.classList.remove("visible");
-  const statusEl = document.getElementById("status-text");
-  if (statusEl) statusEl.innerText = "";
-  const sendBtnEl = document.getElementById("send-btn");
-  if (sendBtnEl) sendBtnEl.disabled = false;
+  msgInput.value = ""; msgInput.style.height = "auto";
+  mediaUpload.value = ""; fileTag.classList.remove("visible");
+  document.getElementById("status-text").innerText = "";
+  document.getElementById("send-btn").disabled = false;
 }
