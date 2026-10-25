@@ -107,9 +107,10 @@ document.getElementById("send-btn").addEventListener("click", async () => {
     notifyPartner(textVal);
   }
 
-  // 3. Upload files sequentially in the background
+  // 3. Upload files sequentially in the background & bundle into a single album bubble
   if (filesToSend.length > 0) {
     document.getElementById("send-btn").disabled = true; // Prevent spamming the upload button
+    const uploadedMedia = [];
     
     for (let i = 0; i < filesToSend.length; i++) {
       const fileVal = filesToSend[i];
@@ -128,13 +129,13 @@ document.getElementById("send-btn").addEventListener("click", async () => {
           reader.readAsDataURL(fileVal);
         });
 
-// Send to Google Apps Script
+        // Send to Google Apps Script
         const res = await fetch(appsScriptUrl, { 
           method: "POST", 
           headers: { "Content-Type": "text/plain;charset=utf-8" }, 
           body: JSON.stringify({ 
             secret: state.uploadSecret, 
-            action: "upload",             // ➔ ADD THIS LINE!
+            action: "upload",
             base64: base64Data, 
             mimeType: fileVal.type || "application/octet-stream", 
             fileName: fileVal.name 
@@ -143,21 +144,47 @@ document.getElementById("send-btn").addEventListener("click", async () => {
         
         const result = await res.json();
         if (result.status === "success") { 
-          // Post the media bubble to the chat once the upload is finished
-          await addDoc(collection(db, "messages"), { 
-            ...basePayload, 
-            mediaUrl: result.url, 
+          uploadedMedia.push({
+            url: result.url,
             mimeType: fileVal.type || "application/octet-stream",
             fileName: fileVal.name || "",
             fileSize: fileVal.size || 0
-          }); 
-          notifyPartner(fileVal.type.startsWith("image/") ? "📷 Sent you a photo" : fileVal.type.startsWith("video/") ? "🎥 Sent you a video" : "📎 " + (fileVal.name || "Sent you a file"));
+          });
         } else {
           console.error("Upload failed for", fileVal.name, result.error);
         }
       } catch(e) { 
         console.error("Network error uploading", fileVal.name); 
       }
+    }
+
+    // ✨ GROUP MULTIPLE PHOTOS INTO A SINGLE BUBBLE
+    if (uploadedMedia.length === 1) {
+      // Single file - standard format
+      const item = uploadedMedia[0];
+      await addDoc(collection(db, "messages"), { 
+        ...basePayload, 
+        mediaUrl: item.url, 
+        mediaUrls: [item.url],
+        mimeType: item.mimeType,
+        fileName: item.fileName,
+        fileSize: item.fileSize
+      }); 
+      notifyPartner(item.mimeType.startsWith("image/") ? "📷 Sent you a photo" : item.mimeType.startsWith("video/") ? "🎥 Sent you a video" : "📎 " + (item.fileName || "Sent you a file"));
+    } else if (uploadedMedia.length > 1) {
+      // Multiple files - single album message with mediaUrls array
+      const urls = uploadedMedia.map(m => m.url);
+      const allImages = uploadedMedia.every(m => m.mimeType.startsWith("image/"));
+      await addDoc(collection(db, "messages"), { 
+        ...basePayload, 
+        mediaUrl: urls[0],
+        mediaUrls: urls,
+        mediaItems: uploadedMedia,
+        mimeType: allImages ? "image/album" : uploadedMedia[0].mimeType,
+        fileName: `${uploadedMedia.length} photos`,
+        fileSize: uploadedMedia.reduce((acc, m) => acc + (m.fileSize || 0), 0)
+      }); 
+      notifyPartner(`📷 Sent an album (${uploadedMedia.length} photos)`);
     }
     
     statusEl.innerText = "";

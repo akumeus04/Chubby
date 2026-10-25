@@ -1,7 +1,160 @@
-// Media bubble HTML rendering
+// Media bubble HTML rendering with Photo Album Grid support
 
-// ── MEDIA RENDERING (FIXED FOR VIDEOS & LIGHTBOX) ─────────
+// ── RESOLVE DRIVE OR THUMBNAIL URLS ───────────────────────
+export function resolveMediaUrl(rawUrl) {
+  if (!rawUrl) return "";
+  if (rawUrl.includes("drive.google.com")) {
+    const m1 = rawUrl.match(/\/file\/d\/([^\/]+)/);
+    const m2 = rawUrl.match(/[?&]id=([^&]+)/);
+    const fileId = m1 ? m1[1] : (m2 ? m2[1] : "");
+    if (fileId) return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+  }
+  return rawUrl;
+}
+
+// ── INJECT ALBUM GRID STYLES (ONCE) ───────────────────────
+function injectAlbumStyles() {
+  if (typeof document === 'undefined' || document.getElementById('chubby-album-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'chubby-album-styles';
+  style.textContent = `
+    .media-album-grid {
+      display: grid;
+      gap: 4px;
+      border-radius: 14px;
+      overflow: hidden;
+      max-width: 280px;
+      margin-top: 6px;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      user-select: none;
+    }
+    .media-album-grid.grid-2 {
+      grid-template-columns: 1fr 1fr;
+      aspect-ratio: 2/1;
+    }
+    .media-album-grid.grid-3 {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1.25fr 1fr;
+    }
+    .media-album-grid.grid-3 .span-2 {
+      grid-column: span 2;
+      aspect-ratio: 16/9;
+    }
+    .media-album-grid.grid-4 {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      aspect-ratio: 1/1;
+    }
+    .album-thumb-wrap {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      cursor: pointer;
+      background: #09090b;
+    }
+    .album-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+    }
+    .album-thumb-wrap:hover .album-img {
+      transform: scale(1.04);
+      opacity: 0.92;
+    }
+    .album-more-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.68);
+      backdrop-filter: blur(2px);
+      color: #ffffff;
+      font-size: 20px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// ── PHOTO ALBUM GRID BUILDER ──────────────────────────────
+function buildPhotoGridHtml(urls, data) {
+  injectAlbumStyles();
+
+  const resolved = urls.map(u => resolveMediaUrl(u));
+  const count = resolved.length;
+  const jsonUrls = JSON.stringify(resolved).replace(/"/g, '&quot;');
+
+  // 2 Photos: Side-by-side
+  if (count === 2) {
+    return `
+      <div class="media-album-grid grid-2" onclick="event.stopPropagation()">
+        ${resolved.map((url, i) => `
+          <div class="album-thumb-wrap" onclick="window.openLightbox(${jsonUrls}, 'image', ${i})">
+            <img src="${url}" class="album-img" loading="lazy" alt="Photo ${i + 1}">
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // 3 Photos: 1 wide top, 2 split bottom
+  if (count === 3) {
+    return `
+      <div class="media-album-grid grid-3" onclick="event.stopPropagation()">
+        <div class="album-thumb-wrap span-2" onclick="window.openLightbox(${jsonUrls}, 'image', 0)">
+          <img src="${resolved[0]}" class="album-img" loading="lazy" alt="Photo 1">
+        </div>
+        <div class="album-thumb-wrap" onclick="window.openLightbox(${jsonUrls}, 'image', 1)">
+          <img src="${resolved[1]}" class="album-img" loading="lazy" alt="Photo 2">
+        </div>
+        <div class="album-thumb-wrap" onclick="window.openLightbox(${jsonUrls}, 'image', 2)">
+          <img src="${resolved[2]}" class="album-img" loading="lazy" alt="Photo 3">
+        </div>
+      </div>
+    `;
+  }
+
+  // 4+ Photos: 2x2 grid with +N on 4th image
+  const displayPhotos = resolved.slice(0, 4);
+  const remaining = count - 4;
+
+  return `
+    <div class="media-album-grid grid-4" onclick="event.stopPropagation()">
+      ${displayPhotos.map((url, i) => {
+        const isLast = i === 3 && remaining > 0;
+        return `
+          <div class="album-thumb-wrap" onclick="window.openLightbox(${jsonUrls}, 'image', ${i})">
+            <img src="${url}" class="album-img" loading="lazy" alt="Photo ${i + 1}">
+            ${isLast ? `<div class="album-more-overlay">+${remaining + 1}</div>` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// ── MEDIA RENDERING (FIXED FOR MULTI-PHOTO ALBUMS, VIDEOS & LIGHTBOX) ──
 export function buildMediaHtml(data) {
+  // Check for multi-file album array
+  const urls = (data.mediaUrls && Array.isArray(data.mediaUrls) && data.mediaUrls.length > 0)
+    ? data.mediaUrls
+    : (data.mediaUrl ? [data.mediaUrl] : []);
+
+  if (urls.length > 1) {
+    return buildPhotoGridHtml(urls, data);
+  }
+
+  // If single URL in array, make sure mediaUrl is populated
+  if (urls.length === 1 && !data.mediaUrl) {
+    data.mediaUrl = urls[0];
+  }
+
   if (!data.mediaUrl) return "";
   const rawUrl = data.mediaUrl, mime = data.mimeType || "";
   const isGif   = mime.includes("gif") || rawUrl.toLowerCase().includes(".gif");
@@ -15,13 +168,11 @@ export function buildMediaHtml(data) {
     fileId = m1 ? m1[1] : (m2 ? m2[1] : ""); 
   }
   
-if (isDrive && (isVideo || isGif)) {
-    // Removed autoplay=1 to prevent browser blocking
+  if (isDrive && (isVideo || isGif)) {
     const prevUrl = `https://drive.google.com/file/d/${fileId}/preview`;
     const viewUrl = `https://drive.google.com/file/d/${fileId}/view`;
     const thumbUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
     
-    // We now use window.openLightbox to launch the Drive player smoothly over the chat
     return `
       <div class="media-thumb-wrap" 
            style="width:240px;height:135px;position:relative;overflow:hidden;border-radius:12px;margin-top:6px;background:#000;cursor:pointer;" 
@@ -44,8 +195,6 @@ if (isDrive && (isVideo || isGif)) {
     return `<div class="media-thumb-wrap" onclick="window.openLightbox('${imgUrl}','image')"><img class="media-img" src="${imgUrl}" loading="lazy"></div>`; 
   }
   
-  // FIX 2: Standard videos now pop up in Lightbox. 
-  // Inline controls were getting blocked by the Swipe-To-Reply pointer capture.
   if (isVideo) {
     return `<div class="media-thumb-wrap" onclick="window.openLightbox('${rawUrl}', 'video')" style="position:relative;cursor:pointer;background:#000;">
               <video class="media-video" src="${rawUrl}#t=0.1" preload="metadata" playsinline style="pointer-events:none;"></video>
