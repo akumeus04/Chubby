@@ -1,17 +1,7 @@
 // js/auth.js — Google Authentication & SHA-256 Access Guard for Chubby Chat
 
-import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyAc46X6MIXI-moZ2oTy2ShiDv6IrjhVQC4",
-  authDomain: "finance-app-23309.firebaseapp.com",
-  projectId: "finance-app-23309",
-};
-
-// Initialize or reuse existing app instance
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
+import { GoogleAuthProvider, signInWithRedirect, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { auth } from "./firebase.js";
 
 // ==========================================
 // SECURITY & AUTH SETUP (SHA-256 RESTRICTED)
@@ -109,7 +99,7 @@ window.handleGoogleLogin = async function () {
   }
   if (errDiv) errDiv.style.display = "none";
 
-try {
+  try {
     await signInWithRedirect(auth, provider);
   } catch (error) {
     if (errDiv) {
