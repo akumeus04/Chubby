@@ -1,4 +1,45 @@
 // Media bubble HTML rendering with Photo Album Grid support
+// Fixes inline HTML quote escaping bug via openAlbumLightbox & URL-encoded data-album
+
+// ── GLOBAL ALBUM LIGHTBOX HANDLER (CLEAN, NO INLINE QUOTES) ──
+if (typeof window !== "undefined") {
+  window._chatAlbumStore = window._chatAlbumStore || {};
+  window.openAlbumLightbox = function(el, index) {
+    if (!el) return;
+    const idx = typeof index === "number" ? index : (parseInt(index, 10) || 0);
+    const grid = el.closest ? el.closest(".media-album-grid") : el;
+    if (!grid) return;
+
+    // 1. Fast in-memory cache lookup
+    const albumKey = grid.getAttribute("data-album-key");
+    if (albumKey && window._chatAlbumStore && window._chatAlbumStore[albumKey]) {
+      if (typeof window.openLightbox === "function") {
+        window.openLightbox(window._chatAlbumStore[albumKey], "image", idx);
+        return;
+      }
+    }
+
+    // 2. URI-encoded data attribute fallback (survives DOM refreshes)
+    const raw = grid.getAttribute("data-album");
+    if (raw) {
+      try {
+        const urls = JSON.parse(decodeURIComponent(raw));
+        if (Array.isArray(urls) && urls.length > 0 && typeof window.openLightbox === "function") {
+          window.openLightbox(urls, "image", idx);
+          return;
+        }
+      } catch (err) {
+        console.error("openAlbumLightbox decoding error:", err);
+      }
+    }
+
+    // 3. Fallback: collect all img sources in this grid
+    const imgs = Array.from(grid.querySelectorAll("img.album-img")).map(img => img.src).filter(Boolean);
+    if (imgs.length > 0 && typeof window.openLightbox === "function") {
+      window.openLightbox(imgs, "image", idx);
+    }
+  };
+}
 
 // ── RESOLVE DRIVE OR THUMBNAIL URLS ───────────────────────
 export function resolveMediaUrl(rawUrl) {
@@ -86,16 +127,24 @@ function injectAlbumStyles() {
 function buildPhotoGridHtml(urls, data) {
   injectAlbumStyles();
 
-  const resolved = urls.map(u => resolveMediaUrl(u));
+  const resolved = urls.map(u => resolveMediaUrl(u)).filter(Boolean);
   const count = resolved.length;
-  const jsonUrls = JSON.stringify(resolved).replace(/"/g, '&quot;');
+  if (count === 0) return "";
+
+  // Unique key for in-memory store + URI-encoded string for HTML attribute (no quotes or brackets!)
+  const albumKey = "alb_" + Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+  if (typeof window !== "undefined") {
+    window._chatAlbumStore = window._chatAlbumStore || {};
+    window._chatAlbumStore[albumKey] = resolved;
+  }
+  const encodedAlbum = encodeURIComponent(JSON.stringify(resolved));
 
   // 2 Photos: Side-by-side
   if (count === 2) {
     return `
-      <div class="media-album-grid grid-2" onclick="event.stopPropagation()">
+      <div class="media-album-grid grid-2" data-album-key="${albumKey}" data-album="${encodedAlbum}" onclick="event.stopPropagation()">
         ${resolved.map((url, i) => `
-          <div class="album-thumb-wrap" onclick="window.openLightbox(${jsonUrls}, 'image', ${i})">
+          <div class="album-thumb-wrap" onclick="window.openAlbumLightbox(this, ${i})">
             <img src="${url}" class="album-img" loading="lazy" alt="Photo ${i + 1}">
           </div>
         `).join('')}
@@ -106,14 +155,14 @@ function buildPhotoGridHtml(urls, data) {
   // 3 Photos: 1 wide top, 2 split bottom
   if (count === 3) {
     return `
-      <div class="media-album-grid grid-3" onclick="event.stopPropagation()">
-        <div class="album-thumb-wrap span-2" onclick="window.openLightbox(${jsonUrls}, 'image', 0)">
+      <div class="media-album-grid grid-3" data-album-key="${albumKey}" data-album="${encodedAlbum}" onclick="event.stopPropagation()">
+        <div class="album-thumb-wrap span-2" onclick="window.openAlbumLightbox(this, 0)">
           <img src="${resolved[0]}" class="album-img" loading="lazy" alt="Photo 1">
         </div>
-        <div class="album-thumb-wrap" onclick="window.openLightbox(${jsonUrls}, 'image', 1)">
+        <div class="album-thumb-wrap" onclick="window.openAlbumLightbox(this, 1)">
           <img src="${resolved[1]}" class="album-img" loading="lazy" alt="Photo 2">
         </div>
-        <div class="album-thumb-wrap" onclick="window.openLightbox(${jsonUrls}, 'image', 2)">
+        <div class="album-thumb-wrap" onclick="window.openAlbumLightbox(this, 2)">
           <img src="${resolved[2]}" class="album-img" loading="lazy" alt="Photo 3">
         </div>
       </div>
@@ -125,11 +174,11 @@ function buildPhotoGridHtml(urls, data) {
   const remaining = count - 4;
 
   return `
-    <div class="media-album-grid grid-4" onclick="event.stopPropagation()">
+    <div class="media-album-grid grid-4" data-album-key="${albumKey}" data-album="${encodedAlbum}" onclick="event.stopPropagation()">
       ${displayPhotos.map((url, i) => {
         const isLast = i === 3 && remaining > 0;
         return `
-          <div class="album-thumb-wrap" onclick="window.openLightbox(${jsonUrls}, 'image', ${i})">
+          <div class="album-thumb-wrap" onclick="window.openAlbumLightbox(this, ${i})">
             <img src="${url}" class="album-img" loading="lazy" alt="Photo ${i + 1}">
             ${isLast ? `<div class="album-more-overlay">+${remaining + 1}</div>` : ''}
           </div>
@@ -140,17 +189,44 @@ function buildPhotoGridHtml(urls, data) {
 }
 
 // ── MEDIA RENDERING (FIXED FOR MULTI-PHOTO ALBUMS, VIDEOS & LIGHTBOX) ──
-export function buildMediaHtml(data) {
-  // Check for multi-file album array
-  const urls = (data.mediaUrls && Array.isArray(data.mediaUrls) && data.mediaUrls.length > 0)
-    ? data.mediaUrls
-    : (data.mediaUrl ? [data.mediaUrl] : []);
+export function buildMediaHtml(data, secondaryMime) {
+  if (!data) return "";
 
+  // Normalize string calls e.g. buildMediaHtml(url, mime)
+  if (typeof data === "string") {
+    data = { mediaUrl: data, mimeType: secondaryMime || "" };
+  }
+
+  // 1. Gather all possible URL sources for multi-photo albums
+  let urls = [];
+  if (Array.isArray(data.mediaUrls) && data.mediaUrls.length > 0) {
+    urls = data.mediaUrls.map(u => (typeof u === "string" ? u : (u?.url || ""))).filter(Boolean);
+  } else if (Array.isArray(data.mediaItems) && data.mediaItems.length > 0) {
+    urls = data.mediaItems.map(u => (typeof u === "string" ? u : (u?.url || ""))).filter(Boolean);
+  } else if (Array.isArray(data.images) && data.images.length > 0) {
+    urls = data.images.map(u => (typeof u === "string" ? u : (u?.url || ""))).filter(Boolean);
+  } else if (typeof data.mediaUrls === "string" && data.mediaUrls.trim()) {
+    const trimmed = data.mediaUrls.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) urls = parsed.map(u => (typeof u === "string" ? u : (u?.url || ""))).filter(Boolean);
+      } catch (_) {}
+    } else if (trimmed.includes(",")) {
+      urls = trimmed.split(",").map(s => s.trim()).filter(Boolean);
+    } else {
+      urls = [trimmed];
+    }
+  } else if (data.mediaUrl) {
+    urls = [data.mediaUrl];
+  }
+
+  // 2. If more than 1 URL, render the Photo Album Grid!
   if (urls.length > 1) {
     return buildPhotoGridHtml(urls, data);
   }
 
-  // If single URL in array, make sure mediaUrl is populated
+  // 3. Single URL fallback: ensure data.mediaUrl is set
   if (urls.length === 1 && !data.mediaUrl) {
     data.mediaUrl = urls[0];
   }
@@ -176,7 +252,8 @@ export function buildMediaHtml(data) {
     return `
       <div class="media-thumb-wrap" 
            style="width:240px;height:135px;position:relative;overflow:hidden;border-radius:12px;margin-top:6px;background:#000;cursor:pointer;" 
-           onclick="window.openLightbox('${prevUrl}', 'video')">
+           data-media-url="${prevUrl}"
+           onclick="window.openLightbox(this.getAttribute('data-media-url'), 'video')">
         
         <img src="${thumbUrl}" style="width:100%;height:100%;object-fit:cover;opacity:0.8;" onerror="this.style.display='none'">
         
@@ -192,11 +269,11 @@ export function buildMediaHtml(data) {
   
   if (isDrive && isImage) { 
     const imgUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`; 
-    return `<div class="media-thumb-wrap" onclick="window.openLightbox('${imgUrl}','image')"><img class="media-img" src="${imgUrl}" loading="lazy"></div>`; 
+    return `<div class="media-thumb-wrap" data-media-url="${imgUrl}" onclick="window.openLightbox(this.getAttribute('data-media-url'),'image')"><img class="media-img" src="${imgUrl}" loading="lazy"></div>`; 
   }
   
   if (isVideo) {
-    return `<div class="media-thumb-wrap" onclick="window.openLightbox('${rawUrl}', 'video')" style="position:relative;cursor:pointer;background:#000;">
+    return `<div class="media-thumb-wrap" data-media-url="${rawUrl}" onclick="window.openLightbox(this.getAttribute('data-media-url'), 'video')" style="position:relative;cursor:pointer;background:#000;">
               <video class="media-video" src="${rawUrl}#t=0.1" preload="metadata" playsinline style="pointer-events:none;"></video>
               <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
                 <div style="background:rgba(0,0,0,0.6);color:#fff;width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;">▶</div>
@@ -204,7 +281,9 @@ export function buildMediaHtml(data) {
             </div>`;
   }
 
-  if (isImage || isGif) return `<div class="media-thumb-wrap" onclick="window.openLightbox('${rawUrl}','image')"><img class="media-img" src="${rawUrl}" loading="lazy"></div>`;
+  if (isImage || isGif) {
+    return `<div class="media-thumb-wrap" data-media-url="${rawUrl}" onclick="window.openLightbox(this.getAttribute('data-media-url'),'image')"><img class="media-img" src="${rawUrl}" loading="lazy"></div>`;
+  }
   
   return buildDocumentCard(data, rawUrl, mime, fileId);
 }
@@ -243,4 +322,8 @@ function buildDocumentCard(data, rawUrl, mime, fileId) {
     </a>
     <a class="doc-card-dl" href="${dlUrl}" target="_blank" rel="noopener" download title="Download" onclick="event.stopPropagation()">⬇</a>
   </div>`;
+}
+
+if (typeof window !== "undefined") {
+  window.buildMediaHtml = buildMediaHtml;
 }

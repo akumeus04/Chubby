@@ -25,7 +25,13 @@ window.chatBridge = {
   showInAppBanner: (title, body) => showInAppBanner(title, body),
   getDirectImageUrl: (url) => getDirectImageUrl(url),
   formatMessageText: (txt) => formatMessageText(txt),
-  buildMediaHtml: (data) => buildMediaHtml(data),
+  buildMediaHtml: (dataOrUrl, mimeType) => {
+    if (!dataOrUrl) return "";
+    if (typeof dataOrUrl === "string") {
+      return buildMediaHtml({ mediaUrl: dataOrUrl, mimeType: mimeType || "" });
+    }
+    return buildMediaHtml(dataOrUrl, mimeType);
+  },
   addLongPressAndRightClick: (el, cb) => addLongPressAndRightClick(el, cb),
   addSwipeToReply: (el, id, isMe, data) => addSwipeToReply(el, id, isMe, data),
   triggerReplyState: (id, data) => triggerReplyState(id, data),
