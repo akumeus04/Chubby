@@ -15,12 +15,13 @@ export const firebaseConfig = {
 export const appsScriptUrl = "https://script.google.com/macros/s/AKfycbzsq7XjOl43bKN1pC2gs_1HCmy9aBaIwVS3RcDQHNf4yjNG-vadncYlguWDgABCaLg/exec"; 
 
 // 2. URL for Pushover Notifications (Your separate Magic Router script)
-// 🚨 REPLACE THIS WITH YOUR SECOND SCRIPT'S WEB APP URL:
 export const pushoverAppsScriptUrl = "https://script.google.com/macros/s/AKfycbwAWOQoiaNOo51dL9_s04D9L8waDNV--Euoz8NR_csyhJX635jf48oOZyYoxDyCf6vr/exec"; 
+
+// 3. Pushover API Credentials (REQUIRED by notifications.js)
+export const pushoverAppToken = "akbuovy9ubfz4fm8xbbq71n9vi322r";
+export const pushoverUserKey = "ufmfkvid3kq9raahbuc3fe6qq9xrwt";
 
 export const GIPHY_API_KEY = "CUKuNGhZYEuz3HWS5ybpViRmpoDWm8P2";
 
 // Web Push (Android Chrome / installed app) key pair.
-// Optional: Firebase Console → Project settings → Cloud Messaging → Web Push certificates → "Generate key pair".
-// Leave "" to use Firebase's default key.
 export const VAPID_KEY = "";
