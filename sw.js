@@ -1,20 +1,7 @@
-// 1. IMPORT FIREBASE LIBRARIES
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
+// Chubby Chat service worker — offline cache + notification taps.
+// (Push notifications now come from Pushover, so Firebase Cloud Messaging is no longer used here.)
 
-// 2. FIREBASE CONFIGURATION
-const firebaseConfig = {
-  apiKey: "AIzaSyA3iIqEl718iLfHKfn9S0d_60PAN4BtcS0",
-  projectId: "ourmessenger-76636",
-  messagingSenderId: "541588910843",
-  appId: "1:541588910843:web:221fd00e69a4711624b65e"
-};
-
-firebase.initializeApp(firebaseConfig);
-const messaging = firebase.messaging();
-
-// 3. CACHE SETTINGS (Bumped to v4.0 for the split-file layout)
-const CACHE_NAME = 'chubby-chat-v4.2';
+const CACHE_NAME = 'chubby-chat-v5.1';
 const URLS_TO_CACHE = [
   './',
   './index.html',
@@ -28,6 +15,7 @@ const URLS_TO_CACHE = [
   './css/input.css',
   './css/banners.css',
   './css/revamp.css',
+  './css/features.css',
   './js/main.js',
   './js/config.js',
   './js/state.js',
@@ -53,43 +41,15 @@ const URLS_TO_CACHE = [
   './js/pwa.js',
   './js/native-media.js',
   './js/viewport.js',
+  './js/emoji-data.js',
+  './js/file-drop.js',
+  './js/touch-guard.js',
   './js/debug-console.js'
 ];
 
-// 4. BACKGROUND NOTIFICATION HANDLER
-// URLs are built from the service-worker scope, so it works on GitHub Pages (/Chubby/), Firebase Hosting, or anywhere else.
-const APP_URL  = self.registration.scope;
-const ICON_URL = new URL('icon-192.png', self.registration.scope).href;
+const APP_URL = self.registration.scope;
 
-messaging.onBackgroundMessage((payload) => {
-  console.log('[sw.js] Background message received:', payload);
-
-  const data  = payload.data || {};
-  const title = data.title || "New Message";
-
-  // Only trust a link that points at this same site
-  let openUrl = APP_URL;
-  try { if (data.url && new URL(data.url).origin === self.location.origin) openUrl = data.url; } catch (e) {}
-
-  const options = {
-    body: data.body || "Check your chat! 🌸",
-    icon: ICON_URL,
-    badge: ICON_URL,
-    // Buzz-pause-buzz on Android
-    vibrate: [300, 100, 300, 100, 300],
-    tag: 'chubby-chat-notification',
-    renotify: true,
-    requireInteraction: true,       // stays on screen until you tap it
-    timestamp: Date.now(),
-    lang: 'en',
-    data: { url: openUrl }
-  };
-
-  // Forces the OS to draw the banner and play the sound
-  return self.registration.showNotification(title, options);
-});
-
-// Tapping the notification opens (or focuses) the app
+// Tapping an in-app notification opens (or focuses) the app
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const target = (event.notification.data && event.notification.data.url) || APP_URL;
@@ -103,7 +63,6 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// 5. EXISTING CACHE & FETCH LOGIC
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(URLS_TO_CACHE))

@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="css/input.css">
   <link rel="stylesheet" href="css/banners.css">
   <link rel="stylesheet" href="css/revamp.css">
+  <link rel="stylesheet" href="css/features.css">
 </head>
 <body>
 
@@ -247,12 +248,6 @@
 
     <div id="chat-window"></div>
 
-    <div id="typing-indicator">
-      <div class="typing-bubble">
-        <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
-      </div>
-    </div>
-
     <div id="status-text"></div>
 
     <div id="input-area">
@@ -263,6 +258,29 @@
       </div>
 
       <div id="edit-banner">✏️ Editing message <button id="cancel-edit-btn">✕</button></div>
+
+      <div id="attachments-gallery"></div>
+
+<div id="input-bar">
+        <button id="expand-btn" type="button" title="More" aria-label="More options" aria-expanded="false">+</button>
+
+        <div class="input-field-wrap">
+          <textarea id="message-input" placeholder="Message…" rows="1" enterkeyhint="send" autocapitalize="sentences"></textarea>
+        </div>
+        <button id="send-btn" type="button" title="Send" aria-label="Send">➤</button>
+      </div>
+
+      <!-- Tray: opens UNDER the message box when you press + -->
+      <div id="composer-tray">
+        <div id="action-buttons-wrapper">
+          <div class="tray-item"><button class="input-action-btn" id="emoji-btn" type="button" title="Emoji">😊</button><span>Emoji</span></div>
+          <div class="tray-item"><button class="input-action-btn" id="gif-btn" type="button" title="GIF" style="font-size:13px;font-weight:800;">GIF</button><span>GIF</span></div>
+          <div class="tray-item"><button class="input-action-btn" id="saved-btn" type="button" title="Quick Replies">⚡</button><span>Quick</span></div>
+          <div class="tray-item"><div class="input-action-btn" title="Take Photo">📷<input type="file" id="native-photo-upload" accept="image/*" capture="environment"></div><span>Camera</span></div>
+          <div class="tray-item"><div class="input-action-btn" title="Record Video">🎥<input type="file" id="native-video-upload" accept="video/*" capture="environment"></div><span>Video</span></div>
+          <div class="tray-item"><div class="input-action-btn" title="Photos & videos">🖼️<input type="file" id="media-upload" accept="image/*,video/*" multiple></div><span>Gallery</span></div>
+          <div class="tray-item"><div class="input-action-btn" title="Documents & files">📄<input type="file" id="doc-upload" accept="*/*" multiple></div><span>Document</span></div>
+        </div>
 
       <div class="emoji-picker-panel" id="emoji-panel"></div>
 
@@ -283,32 +301,6 @@
           <button id="chat-add-reply-btn" class="add-saved-reply-btn">Save</button>
         </div>
       </div>
-
-      <div id="attachments-gallery"></div>
-
-<div id="input-bar">
-        <button id="expand-btn" title="More">+</button>
-
-        <div id="action-buttons-wrapper">
-          <button class="input-action-btn" id="emoji-btn" title="Emoji">😊</button>
-          <button class="input-action-btn" id="gif-btn" title="GIF" style="font-size:13px;font-weight:700;">GIF</button>
-          <button class="input-action-btn" id="saved-btn" title="Quick Replies">⚡</button>
-          <div class="input-action-btn" title="Take Photo">
-  📷<input type="file" id="native-photo-upload" accept="image/*" capture="environment">
-</div>
-
-<div class="input-action-btn" title="Record Video">
-  🎥<input type="file" id="native-video-upload" accept="video/*" capture="environment">
-</div>
-          <div class="input-action-btn" title="Attach file">
-            📎<input type="file" id="media-upload" accept="image/*,video/*" multiple>
-          </div>
-        </div>
-
-        <div class="input-field-wrap">
-          <textarea id="message-input" placeholder="Message…" rows="1"></textarea>
-        </div>
-        <button id="send-btn" title="Send">➤</button>
       </div>
     </div>
 
