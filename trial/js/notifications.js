@@ -23,9 +23,9 @@ async function callPushover(targetUid, title, message, sound, priority = "0") {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
-      secret: state.uploadSecret || "", // Fallback if not fetched
+      secret: state.uploadSecret || "",
       action: "pushover",
-      userKey: targetUid, // Sends the Firebase UID to GAS
+      userKey: targetUid,
       title: title || (state.currentUser && state.currentUser.displayName) || "Chubby Chat",
       message: message,
       sound: sound || "pushover", 
@@ -43,9 +43,7 @@ export async function notifyPartner(body, title) {
   try {
     const snap = await getDocs(collection(db, "users"));
     snap.forEach(d => {
-      // Send to everyone EXCEPT the person who sent the message
       if (d.id === state.currentUser.uid) return; 
-      
       const sound = (d.data() && d.data().pushoverSound) || "pushover";
       callPushover(d.id, title, body, sound).catch(e => console.error("GAS Fetch Error:", e));
     });
@@ -61,7 +59,6 @@ export async function sendPushoverNotification({ message, title = "Messenger Ale
     const res = await callPushover(state.currentUser.uid, title, message, sound, priority);
     return { success: res.status === "success" };
   } catch (err) {
-    console.error("[Pushover] Network exception:", err);
     return { success: false, error: err?.message || String(err) };
   }
 }
@@ -77,7 +74,6 @@ export async function sendPushoverError(errorOrMessage, details = {}) {
   
   console.error(`[Pushover Route] ${title}: ${fullMessage}`, errorOrMessage);
   
-  // Route the error directly to the active user's device
   if (!state.currentUser) return;
   try {
     await callPushover(state.currentUser.uid, title, fullMessage, details.sound || "falling", 1);
@@ -116,7 +112,6 @@ async function sendTest() {
   }
 }
 
-// Safely bind UI buttons using global delegation
 if (typeof document !== "undefined") {
   document.addEventListener("click", (e) => {
     if (e.target && (e.target.id === "pushover-save-btn" || e.target.closest("#pushover-save-btn"))) saveSound();
