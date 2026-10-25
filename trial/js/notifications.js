@@ -1,6 +1,6 @@
+// notifications.js — Pushover via GAS Router, Error Dispatcher, and In-App Alerts
 import { serverTimestamp, doc, setDoc, getDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { db } from "./firebase.js";
-// ➔ CHANGED: Import the dedicated Pushover URL instead of the main one
 import { pushoverAppsScriptUrl } from "./config.js"; 
 import { state } from "./state.js";
 
@@ -9,51 +9,82 @@ const $ = (id) => document.getElementById(id);
 let mySound = "pushover";
 
 function setStatus(text, kind) {
-  const el = $("notif-status"); if (!el) return;
+  const el = $("notif-status"); 
+  if (!el) return;
   el.textContent = text;
   el.style.color = kind === "ok" ? "var(--online)" : kind === "bad" ? "var(--danger)" : "var(--text-secondary)";
 }
 
-// ── Talk to Apps Script ──────────────────────────────────
-async function callPushover(targetUid, title, message, sound) {
-  // ➔ CHANGED: Fetch from the new Pushover GAS URL
+// ── 1. CORE GAS ROUTER ──────────────────────────────────
+async function callPushover(targetUid, title, message, sound, priority = "0") {
+  if (!pushoverAppsScriptUrl) return { status: "error", message: "No GAS URL configured" };
+  
   const res = await fetch(pushoverAppsScriptUrl, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
-      secret: state.uploadSecret,
+      secret: state.uploadSecret || "", // Fallback if not fetched
       action: "pushover",
-      userKey: targetUid,
-      title: title || (state.currentUser && state.currentUser.displayName) || "Partner",
-      message,
+      userKey: targetUid, // Sends the Firebase UID to GAS
+      title: title || (state.currentUser && state.currentUser.displayName) || "Chubby Chat",
+      message: message,
       sound: sound || "pushover", 
+      priority: String(priority),
       url: appUrl()
     })
   });
   return res.json(); 
 }
 
-// Send a Pushover notification to your partner
+// ── 2. PARTNER NOTIFICATIONS ────────────────────────────
 export async function notifyPartner(body, title) {
-  // ➔ CHANGED: Check for the Pushover URL before firing
   if (!state.currentUser || !pushoverAppsScriptUrl) return; 
   
   try {
     const snap = await getDocs(collection(db, "users"));
     snap.forEach(d => {
+      // Send to everyone EXCEPT the person who sent the message
       if (d.id === state.currentUser.uid) return; 
       
       const sound = (d.data() && d.data().pushoverSound) || "pushover";
-      
-      callPushover(d.id, title, body, sound)
-        .catch(e => console.error("GAS Fetch Error:", e));
+      callPushover(d.id, title, body, sound).catch(e => console.error("GAS Fetch Error:", e));
     });
   } catch (e) {
     console.error("🚨 FIREBASE ERROR:", e);
   }
 }
 
-// ── Save / Test (Settings screen) ────────────────────────
+// ── 3. ERROR ROUTING (Expected by chat-send.js) ─────────
+export async function sendPushoverNotification({ message, title = "Messenger Alert", priority = 0, sound = "pushover", url = "", urlTitle = "" }) {
+  if (!state.currentUser) return { success: false, error: "Not logged in" };
+  try {
+    const res = await callPushover(state.currentUser.uid, title, message, sound, priority);
+    return { success: res.status === "success" };
+  } catch (err) {
+    console.error("[Pushover] Network exception:", err);
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
+export async function sendPushoverError(errorOrMessage, details = {}) {
+  const errorText = typeof errorOrMessage === "string" 
+    ? errorOrMessage 
+    : (errorOrMessage?.message || errorOrMessage?.name || JSON.stringify(errorOrMessage));
+    
+  const contextPrefix = details.context ? `[${details.context}] ` : "";
+  const fullMessage = `${contextPrefix}${errorText}`;
+  const title = details.title || "🚨 Messenger Error";
+  
+  console.error(`[Pushover Route] ${title}: ${fullMessage}`, errorOrMessage);
+  
+  // Route the error directly to the active user's device
+  if (!state.currentUser) return;
+  try {
+    await callPushover(state.currentUser.uid, title, fullMessage, details.sound || "falling", 1);
+  } catch (e) {}
+}
+
+// ── 4. SETTINGS SAVING & TESTING ────────────────────────
 async function saveSound() {
   if (!state.currentUser) return false;
   const sound = $("pushover-sound-select") ? $("pushover-sound-select").value : "pushover"; 
@@ -85,10 +116,15 @@ async function sendTest() {
   }
 }
 
-if ($("pushover-save-btn")) $("pushover-save-btn").addEventListener("click", () => saveSound());
-if ($("pushover-test-btn")) $("pushover-test-btn").addEventListener("click", () => sendTest());
+// Safely bind UI buttons using global delegation
+if (typeof document !== "undefined") {
+  document.addEventListener("click", (e) => {
+    if (e.target && (e.target.id === "pushover-save-btn" || e.target.closest("#pushover-save-btn"))) saveSound();
+    if (e.target && (e.target.id === "pushover-test-btn" || e.target.closest("#pushover-test-btn"))) sendTest();
+  });
+}
 
-// Called automatically right after login
+// ── 5. INITIALIZATION (Called after login) ──────────────
 export async function initNotifications(user) {
   if (!user) return;
   try {
@@ -101,7 +137,7 @@ export async function initNotifications(user) {
   }
 }
 
-// ── IN-APP SOUND & NOTIFICATIONS (Banner) ────────────────
+// ── 6. IN-APP SOUND & BANNER ────────────────────────────
 let notifSound = null;
 export function getSound() {
   if (!notifSound) {
