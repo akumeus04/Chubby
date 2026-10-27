@@ -112,10 +112,8 @@ function updateAlbumControls() {
   if (editBtn && state._lightboxCurrentUrl) {
     editBtn.onclick = (e) => {
       e.stopPropagation();
-      if (typeof window.openPaintEditor === "function") {
-        window.openPaintEditor(state._lightboxCurrentUrl, (savedUrl) => {
-          console.log("Saved annotated photo", savedUrl);
-        });
+      if (typeof window.lightboxEditImage === "function") {
+        window.lightboxEditImage();
       }
     };
   }
@@ -312,7 +310,13 @@ window.addEventListener("hashchange", () => {
   // 3. Paint editor is open
   const paintModal = document.getElementById("paint-editor-modal");
   if (hash === "#app" && paintModal && paintModal.style.display !== "none") {
-    paintModal.style.display = "none";
+    if (window.location.hash === "#paint-editor") return;
+    if (window._paintEditorOpenedAt && (Date.now() - window._paintEditorOpenedAt < 500)) return;
+    if (typeof window.closePaintEditor === "function") {
+      window.closePaintEditor();
+    } else {
+      paintModal.style.display = "none";
+    }
     return;
   }
 
