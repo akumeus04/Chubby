@@ -13,6 +13,7 @@
   let baseImageData = null;
   let originalImage = null;
   let onSaveCallback = null;
+  let modalOpenedAt = 0;
 
   // Active Tool & Style State
   let currentTool = 'brush';
@@ -72,52 +73,88 @@
   let cropBoxAtStart = null;
   let cropRatio = 'free'; // 'free', '1:1', '16:9', '4:3', '9:16', '3:2', 'circle'
 
+  let lastTouchTime = 0;
+
   // ── COORDINATE NORMALIZATION ──────────────────────────────
   function getPos(e) {
-    if (!canvas) return { x: 0, y: 0 };
+    if (!canvas) return lastPos ? { ...lastPos } : { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    const sx = canvas.width / rect.width;
-    const sy = canvas.height / rect.height;
-    const src = e.touches ? e.touches[0] : (e.changedTouches ? e.changedTouches[0] : e);
+    const sx = rect.width ? (canvas.width / rect.width) : 1;
+    const sy = rect.height ? (canvas.height / rect.height) : 1;
+    
+    let cx = null, cy = null;
+
+    if (e) {
+      if (e.changedTouches && e.changedTouches.length > 0 && e.changedTouches[0]) {
+        cx = e.changedTouches[0].clientX;
+        cy = e.changedTouches[0].clientY;
+      } else if (e.touches && e.touches.length > 0 && e.touches[0]) {
+        cx = e.touches[0].clientX;
+        cy = e.touches[0].clientY;
+      } else if (e.targetTouches && e.targetTouches.length > 0 && e.targetTouches[0]) {
+        cx = e.targetTouches[0].clientX;
+        cy = e.targetTouches[0].clientY;
+      } else if (typeof e.clientX === 'number') {
+        cx = e.clientX;
+        cy = e.clientY;
+      }
+    }
+
+    if (typeof cx !== 'number' || typeof cy !== 'number' || isNaN(cx) || isNaN(cy)) {
+      return lastPos ? { ...lastPos } : { x: 0, y: 0 };
+    }
+
     return {
-      x: (src.clientX - rect.left) * sx,
-      y: (src.clientY - rect.top) * sy,
+      x: (cx - rect.left) * sx,
+      y: (cy - rect.top) * sy,
     };
   }
 
   // ── UNDO / REDO HISTORY ───────────────────────────────────
   function snapshot() {
     if (!ctx || !canvas) return;
-    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    if (undoStack.length > 35) undoStack.shift();
-    redoStack = [];
-    refreshHistoryBtns();
+    try {
+      undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      if (undoStack.length > 35) undoStack.shift();
+      redoStack = [];
+      refreshHistoryBtns();
+    } catch (e) {
+      console.warn("Could not record snapshot (canvas may be tainted):", e);
+    }
   }
 
   function undo() {
     if (!undoStack.length || !canvas || !ctx) return;
-    redoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    const prev = undoStack.pop();
-    if (canvas.width !== prev.width || canvas.height !== prev.height) {
-      canvas.width = prev.width;
-      canvas.height = prev.height;
+    try {
+      redoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      const prev = undoStack.pop();
+      if (canvas.width !== prev.width || canvas.height !== prev.height) {
+        canvas.width = prev.width;
+        canvas.height = prev.height;
+      }
+      ctx.putImageData(prev, 0, 0);
+      refreshHistoryBtns();
+      updateCanvasDimLabel();
+    } catch (e) {
+      console.warn("Could not undo:", e);
     }
-    ctx.putImageData(prev, 0, 0);
-    refreshHistoryBtns();
-    updateCanvasDimLabel();
   }
 
   function redo() {
     if (!redoStack.length || !canvas || !ctx) return;
-    undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    const next = redoStack.pop();
-    if (canvas.width !== next.width || canvas.height !== next.height) {
-      canvas.width = next.width;
-      canvas.height = next.height;
+    try {
+      undoStack.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      const next = redoStack.pop();
+      if (canvas.width !== next.width || canvas.height !== next.height) {
+        canvas.width = next.width;
+        canvas.height = next.height;
+      }
+      ctx.putImageData(next, 0, 0);
+      refreshHistoryBtns();
+      updateCanvasDimLabel();
+    } catch (e) {
+      console.warn("Could not redo:", e);
     }
-    ctx.putImageData(next, 0, 0);
-    refreshHistoryBtns();
-    updateCanvasDimLabel();
   }
 
   function refreshHistoryBtns() {
@@ -310,7 +347,7 @@
     const th = Math.max(2, Math.floor(rh * scale));
     tmp.width = tw;
     tmp.height = th;
-    const tctx = tmp.getContext('2d');
+    const tctx = tmp.getContext('2d', { willReadFrequently: true });
     tctx.imageSmoothingEnabled = true;
     tctx.drawImage(canvas, rx, ry, rw, rh, 0, 0, tw, th);
 
@@ -322,7 +359,12 @@
 
   // ── MOUSE / TOUCH DRAW EVENTS ─────────────────────────────
   function onStart(e) {
-    e.preventDefault();
+    if (e.type && e.type.startsWith('touch')) {
+      lastTouchTime = Date.now();
+    } else if (e.type && e.type.startsWith('mouse') && Date.now() - lastTouchTime < 450) {
+      return;
+    }
+    if (e.cancelable) e.preventDefault();
     if (isComparing) return;
     const pos = getPos(e);
     lastPos = pos;
@@ -331,9 +373,11 @@
     // Hand/Pan viewport
     if (currentTool === 'hand' || (e.button === 1)) {
       isPanning = true;
-      const src = e.touches ? e.touches[0] : e;
-      panStartX = src.clientX - panX;
-      panStartY = src.clientY - panY;
+      const src = e?.touches?.[0] || e?.changedTouches?.[0] || e?.targetTouches?.[0] || (typeof e?.clientX === 'number' ? e : null);
+      if (src && typeof src.clientX === 'number' && typeof src.clientY === 'number') {
+        panStartX = src.clientX - panX;
+        panStartY = src.clientY - panY;
+      }
       return;
     }
 
@@ -409,14 +453,19 @@
   }
 
   function onMove(e) {
-    e.preventDefault();
+    if (e.type && e.type.startsWith('mouse') && Date.now() - lastTouchTime < 450) {
+      return;
+    }
+    if (e.cancelable) e.preventDefault();
     const pos = getPos(e);
 
     if (isPanning) {
-      const src = e.touches ? e.touches[0] : e;
-      panX = src.clientX - panStartX;
-      panY = src.clientY - panStartY;
-      applyCanvasTransform();
+      const src = e?.touches?.[0] || e?.changedTouches?.[0] || e?.targetTouches?.[0] || (typeof e?.clientX === 'number' ? e : null);
+      if (src && typeof src.clientX === 'number' && typeof src.clientY === 'number') {
+        panX = src.clientX - panStartX;
+        panY = src.clientY - panStartY;
+        applyCanvasTransform();
+      }
       return;
     }
 
@@ -557,6 +606,9 @@
   }
 
   function onEnd(e) {
+    if (e.type && e.type.startsWith('mouse') && Date.now() - lastTouchTime < 450) {
+      return;
+    }
     if (isPanning) {
       isPanning = false;
       return;
@@ -572,10 +624,14 @@
 
     if (startPos) {
       const pos = getPos(e);
-      if (snapshotBeforeDrag) ctx.putImageData(snapshotBeforeDrag, 0, 0);
+      
+      // ONLY restore the snapshot for pixelate and blur. 
+      // Brush, pen, and shapes are already perfectly drawn on the canvas from onMove!
       if (currentTool === 'pixelate') {
+        if (snapshotBeforeDrag) ctx.putImageData(snapshotBeforeDrag, 0, 0);
         applyPixelateBox(startPos, pos);
       } else if (currentTool === 'blur') {
+        if (snapshotBeforeDrag) ctx.putImageData(snapshotBeforeDrag, 0, 0);
         applyBlurBox(startPos, pos);
       }
     }
@@ -844,7 +900,7 @@
       const circleCanvas = document.createElement('canvas');
       circleCanvas.width = w;
       circleCanvas.height = h;
-      circleCanvas.getContext('2d').drawImage(canvas, 0, 0);
+      circleCanvas.getContext('2d', { willReadFrequently: true }).drawImage(canvas, 0, 0);
 
       ctx.clearRect(0, 0, w, h);
       ctx.save();
@@ -860,7 +916,7 @@
       const tmp = document.createElement('canvas');
       tmp.width = baseImageData.width;
       tmp.height = baseImageData.height;
-      tmp.getContext('2d').putImageData(baseImageData, 0, 0);
+      tmp.getContext('2d', { willReadFrequently: true }).drawImage(canvas, 0, 0);
       baseImageData = tmp.getContext('2d').getImageData(x, y, w, h);
     }
     cancelCropMode();
@@ -902,12 +958,12 @@
     if (baseImageData) {
       const baseTmp = document.createElement('canvas');
       baseTmp.width = oldW; baseTmp.height = oldH;
-      baseTmp.getContext('2d').putImageData(baseImageData, 0, 0);
+      baseTmp.getContext('2d', { willReadFrequently: true }).putImageData(baseImageData, 0, 0);
 
       const newBaseCanvas = document.createElement('canvas');
       newBaseCanvas.width = canvas.width;
       newBaseCanvas.height = canvas.height;
-      const bctx = newBaseCanvas.getContext('2d');
+      const bctx = newBaseCanvas.getContext('2d', { willReadFrequently: true });
       bctx.translate(canvas.width / 2, canvas.height / 2);
       bctx.rotate((deg * Math.PI) / 180);
       bctx.drawImage(baseTmp, -oldW / 2, -oldH / 2);
@@ -923,7 +979,7 @@
     const w = canvas.width, h = canvas.height;
     const tmp = document.createElement('canvas');
     tmp.width = w; tmp.height = h;
-    tmp.getContext('2d').drawImage(canvas, 0, 0);
+    tmp.getContext('2d', { willReadFrequently: true }).drawImage(canvas, 0, 0);
 
     ctx.save();
     if (axis === 'h') {
@@ -939,11 +995,11 @@
     if (baseImageData) {
       const baseTmp = document.createElement('canvas');
       baseTmp.width = w; baseTmp.height = h;
-      baseTmp.getContext('2d').putImageData(baseImageData, 0, 0);
+      baseTmp.getContext('2d', { willReadFrequently: true }).putImageData(baseImageData, 0, 0);
 
       const bcanvas = document.createElement('canvas');
       bcanvas.width = w; bcanvas.height = h;
-      const bctx = bcanvas.getContext('2d');
+      const bctx = bcanvas.getContext('2d', { willReadFrequently: true });
       if (axis === 'h') { bctx.translate(w, 0); bctx.scale(-1, 1); }
       else { bctx.translate(0, h); bctx.scale(1, -1); }
       bctx.drawImage(baseTmp, 0, 0);
@@ -1040,17 +1096,26 @@
     panX = 0;
     panY = 0;
 
+    window._paintEditorOpenedAt = Date.now();
     modal.style.display = 'flex';
-    window.history.pushState(null, '', '#paint-editor');
+    modalOpenedAt = Date.now();
+    if (window.location.hash !== '#paint-editor') {
+      window.location.hash = 'paint-editor';
+    }
 
     canvas = document.getElementById('pe-canvas');
-    ctx = canvas.getContext('2d');
+    ctx = canvas.getContext('2d', { willReadFrequently: true });
 
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // Only set crossOrigin if it is a remote HTTP/HTTPS resource, not data: or blob:
+    if (typeof imageBase64 === 'string' && (imageBase64.startsWith('http://') || imageBase64.startsWith('https://'))) {
+      img.crossOrigin = 'anonymous';
+    }
+
     img.onload = () => {
-      const MAX = 2400;
-      let w = img.width, h = img.height;
+      const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window && window.innerWidth <= 1024);
+      const MAX = isMobile ? 1400 : 2000;
+      let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
       if (w > MAX || h > MAX) {
         if (w > h) { h = Math.round((h * MAX) / w); w = MAX; }
         else { w = Math.round((w * MAX) / h); h = MAX; }
@@ -1058,7 +1123,12 @@
       canvas.width = w;
       canvas.height = h;
       ctx.drawImage(img, 0, 0, w, h);
-      baseImageData = ctx.getImageData(0, 0, w, h);
+      try {
+        baseImageData = ctx.getImageData(0, 0, w, h);
+      } catch (err) {
+        console.warn("Could not read baseImageData (canvas cross-origin):", err);
+        baseImageData = null;
+      }
       originalImage = img;
       undoStack = [];
       redoStack = [];
@@ -1067,10 +1137,45 @@
       setTool('brush');
       setTimeout(fitZoom, 50);
     };
+
+    img.onerror = (e) => {
+      console.error("Failed to load image in paint editor:", e);
+      // Fallback: If anonymous failed, retry without crossOrigin so user can at least view/draw
+      if (img.crossOrigin) {
+        const fallbackImg = new Image();
+        fallbackImg.onload = () => {
+          const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window && window.innerWidth <= 1024);
+          const MAX = isMobile ? 1400 : 2000;
+          let w = fallbackImg.naturalWidth || fallbackImg.width, h = fallbackImg.naturalHeight || fallbackImg.height;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round((h * MAX) / w); w = MAX; }
+            else { w = Math.round((w * MAX) / h); h = MAX; }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          ctx.drawImage(fallbackImg, 0, 0, w, h);
+          originalImage = fallbackImg;
+          undoStack = [];
+          redoStack = [];
+          refreshHistoryBtns();
+          updateCanvasDimLabel();
+          setTool('brush');
+          setTimeout(fitZoom, 50);
+        };
+        fallbackImg.onerror = () => {
+          alert("Failed to load image into editor. Please check connection.");
+        };
+        fallbackImg.src = imageBase64;
+      } else {
+        alert("Failed to load image into editor.");
+      }
+    };
+
     img.src = imageBase64;
   };
 
   function closeEditor() {
+    window._paintEditorOpenedAt = 0;
     if (!modal) return;
     modal.style.display = 'none';
     const ol = document.getElementById('pe-crop-overlay');
@@ -1080,27 +1185,42 @@
     const bar = document.getElementById('pe-crop-bar');
     if (bar) bar.style.display = 'none';
     if (window.location.hash === '#paint-editor') {
-      window.history.replaceState(null, '', '#app');
+      window.location.hash = 'app';
     }
   }
+  window.closePaintEditor = closeEditor;
 
   function saveAndClose() {
-    const out = canvas.toDataURL('image/jpeg', 0.92);
+    let out = null;
+    try {
+      out = canvas.toDataURL('image/jpeg', 0.92);
+    } catch (err) {
+      console.error("Error exporting canvas image:", err);
+      try {
+        out = canvas.toDataURL();
+      } catch (err2) {
+        console.error("Canvas toDataURL totally blocked by browser:", err2);
+        alert("Security restriction: unable to export image. Please download the image first or edit a new upload.");
+        return;
+      }
+    }
     closeEditor();
-    if (onSaveCallback) onSaveCallback(out);
+    if (onSaveCallback && out) onSaveCallback(out);
   }
 
   // ── WIRE EVENTS ───────────────────────────────────────────
   function wireEvents() {
     canvas = document.getElementById('pe-canvas');
-    ctx = canvas.getContext('2d');
+    ctx = canvas.getContext('2d', { willReadFrequently: true });
 
     canvas.addEventListener('touchstart', onStart, { passive: false });
     canvas.addEventListener('touchmove', onMove, { passive: false });
     canvas.addEventListener('touchend', onEnd, { passive: false });
+    canvas.addEventListener('touchcancel', onEnd, { passive: false });
     canvas.addEventListener('mousedown', onStart);
     canvas.addEventListener('mousemove', onMove);
     canvas.addEventListener('mouseup', onEnd);
+    window.addEventListener('mouseup', onEnd);
 
     // Zoom via mouse wheel
     const wrap = document.getElementById('pe-canvas-wrap');
@@ -1261,6 +1381,10 @@
     // Android back button hash listener
     window.addEventListener('hashchange', () => {
       if (modal && modal.style.display !== 'none' && window.location.hash !== '#paint-editor') {
+        if (Date.now() - modalOpenedAt < 500) {
+          window.history.replaceState(null, '', '#paint-editor');
+          return;
+        }
         modal.style.display = 'none';
         const ol = document.getElementById('pe-crop-overlay');
         if (ol) ol.style.cssText = 'display:none;';

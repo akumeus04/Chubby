@@ -3,56 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0e0f14">
-  <link rel="apple-touch-icon" href="icon-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Chubby Chat 🌸</title>
+  <meta name="description" content="Real-time messaging, photo annotation, and chat progressive web app." />
+  <meta property="og:title" content="Chubby Chat 🌸" />
+  <meta property="og:description" content="Real-time messaging, photo annotation, and chat progressive web app." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&display=swap" rel="stylesheet">
 
-  <!-- Styles -->
-  <link rel="stylesheet" href="css/themes.css">
-  <link rel="stylesheet" href="css/chat-extras.css">
-  <link rel="stylesheet" href="css/layout.css">
-  <link rel="stylesheet" href="css/messages.css">
-  <link rel="stylesheet" href="css/input.css">
-  <link rel="stylesheet" href="css/banners.css">
-  <link rel="stylesheet" href="css/revamp.css">
-  <link rel="stylesheet" href="css/features.css">
-
-  <style>
-    /* Google Sign-in Button Styling */
-    .google-sign-in-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      width: 100%;
-      padding: 13px 18px;
-      background: #ffffff;
-      color: #1f1f1f;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 14px;
-      font-family: inherit;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-      transition: all 0.2s ease;
-    }
-    .google-sign-in-btn:hover {
-      background: #f8f9fa;
-      transform: translateY(-1px);
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
-    }
-    .google-sign-in-btn:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-      transform: none;
-    }
-  </style>
+  <!-- Styles (load order matters: later files build on earlier ones) -->
+  <link rel="stylesheet" href="/css/themes.css">
+  <link rel="stylesheet" href="/css/chat-extras.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/messages.css">
+  <link rel="stylesheet" href="/css/input.css">
+  <link rel="stylesheet" href="/css/banners.css">
+  <link rel="stylesheet" href="/css/revamp.css">
+  <link rel="stylesheet" href="/css/features.css">
 </head>
 <body>
 
@@ -68,8 +44,14 @@
 </div>
 
 <div id="lightbox">
+  <!-- Close button — top-LEFT, always visible -->
   <span id="lightbox-close" onclick="window.closeLightbox()"
-    style="position:absolute;top:16px;left:16px;z-index:1002;background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.25);color:#fff;font-size:20px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;backdrop-filter:blur(8px);">✕</span>
+    style="position:absolute;top:16px;left:16px;z-index:1002;
+           background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.25);
+           color:#fff;font-size:20px;width:44px;height:44px;display:flex;
+           align-items:center;justify-content:center;border-radius:50%;
+           cursor:pointer;backdrop-filter:blur(8px);">✕</span>
+  <!-- Action buttons — top-RIGHT -->
   <div id="lightbox-actions" style="position:absolute;top:16px;right:16px;display:flex;gap:8px;z-index:1001;">
     <button id="lightbox-edit-btn" onclick="window.lightboxEditImage()" style="display:none;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:14px;font-weight:600;padding:8px 14px;border-radius:20px;cursor:pointer;backdrop-filter:blur(8px);">✏️ Edit</button>
     <button id="lightbox-download-btn" onclick="window.lightboxDownload()" style="display:none;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:#fff;font-size:14px;padding:8px 14px;border-radius:20px;cursor:pointer;backdrop-filter:blur(8px);">⬇️</button>
@@ -77,34 +59,35 @@
   <div id="lightbox-body"></div>
 </div>
 
-<!-- GOOGLE AUTHENTICATION SCREEN -->
 <div id="login-screen">
   <div class="login-card">
     <div class="login-logo">
       <div class="login-logo-icon">
-        <img src="./icon-192.png" alt="logo" style="width:80px;height:80px;border-radius:22px;object-fit:cover;">
+        <img src="/icon-192.png" alt="logo" style="width:80px;height:80px;border-radius:22px;object-fit:cover;">
       </div>
       <div>
         <div class="login-logo-text">Chubby Chat</div>
         <div class="login-logo-sub">My Tsabby-Tsabs 🌸</div>
       </div>
     </div>
-
-    <div style="margin: 24px 0 10px;">
-      <button id="googleLoginBtn" class="google-sign-in-btn" type="button" onclick="window.handleGoogleLogin()">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style="width: 20px; height: 20px;">
-        <span>Sign in with Google</span>
-      </button>
+    <div class="login-input-wrap">
+      <label class="login-label">Email</label>
+      <input type="email" id="email" class="login-input" placeholder="you@example.com" autocomplete="email">
     </div>
-
-    <p id="login-error" style="display:none; color:var(--danger, #ff4d4f); font-size:13px; margin-top:12px; text-align:center; font-weight:600;"></p>
+    <div class="login-input-wrap">
+      <label class="login-label">Password</label>
+      <input type="password" id="password" class="login-input" placeholder="••••••••" autocomplete="current-password">
+      <span class="forgot-password" id="forgot-password-btn">Forgot Password?</span>
+    </div>
+    <button id="login-btn" class="btn-primary">Sign In</button>
+    <p id="login-error"></p>
   </div>
 </div>
 
-<div id="chat-ui" style="display:none;">
+<div id="chat-ui">
   <div id="sidebar">
     <div id="sidebar-header" style="display: flex; align-items: center; gap: 12px; padding: 20px;">
-      <img src="./icon-192.png" alt="logo" style="width:36px; height:36px; border-radius:10px; object-fit:cover;">
+      <img src="/icon-192.png" alt="logo" style="width:36px; height:36px; border-radius:10px; object-fit:cover;">
       <div class="sidebar-title" style="font-weight: 600; font-size: 18px;">Chubby Chat</div>
     </div>
 
@@ -141,6 +124,7 @@
   </div>
 
   <div id="chat-column">
+
     <div id="settings-panel">
       <div class="settings-header">
         <button class="icon-btn" id="close-settings-btn">←</button>
@@ -179,6 +163,7 @@
 
         <label class="settings-label" style="margin-top:8px;">Pushover Notifications</label>
         
+        <!-- Sound Dropdown -->
         <div style="display:flex; gap:10px; margin-bottom: 10px;">
           <select id="pushover-sound-select" class="settings-input" style="flex:1;">
             <option value="pushover">Pushover (Default)</option>
@@ -210,7 +195,7 @@
           <button id="pushover-test-btn" class="btn-save" style="flex:1; background:var(--surface2); color:var(--text-primary); border:1px solid var(--border);">Test Sound</button>
         </div>
         <div id="notif-status" style="font-size:12px; margin-top:8px;"></div>
-
+        
         <div class="sidebar-divider" style="margin:24px 0;"></div>
 
         <label class="settings-label" style="margin-top:4px;">💅 Chat Background</label>
@@ -259,33 +244,36 @@
       <div style="font-size:14px; font-weight:600; color:var(--text-muted); margin-bottom:4px;">Search Chat History</div>
       <div style="display:flex; gap:8px;">
         <input type="text" id="search-input" placeholder="Search messages…" style="flex:1; padding:10px 14px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text-primary); font-family:var(--font); outline:none;">
-        <button id="search-go-btn" style="padding:10px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; flex-shrink:0; transition:opacity 0.15s;">Search</button>
+        <button id="search-go-btn" style="padding:10px 16px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-family:var(--font); font-size:13px; font-weight:600; cursor:pointer; flex-shrink:0; transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Search</button>
       </div>
       <div id="search-results" style="overflow-y:auto; max-height:280px; display:flex; flex-direction:column; gap:8px; margin-top:4px;"></div>
     </div>
 
     <div id="chat-window"></div>
+
     <div id="status-text"></div>
 
     <div id="input-area">
       <div id="reply-banner">
-        <img id="reply-banner-media" class="reply-banner-media" src="">
+        <img id="reply-banner-media" class="reply-banner-media" src="" alt="reply media">
         <div class="reply-banner-text">Replying to <b id="reply-to-name"></b>: <span id="reply-to-text"></span></div>
         <button id="cancel-reply-btn">✕</button>
       </div>
 
       <div id="edit-banner">✏️ Editing message <button id="cancel-edit-btn">✕</button></div>
+
       <div id="attachments-gallery"></div>
 
       <div id="input-bar">
         <button id="expand-btn" type="button" title="More" aria-label="More options" aria-expanded="false">+</button>
+
         <div class="input-field-wrap">
           <textarea id="message-input" placeholder="Message…" rows="1" enterkeyhint="send" autocapitalize="sentences"></textarea>
         </div>
         <button id="send-btn" type="button" title="Send" aria-label="Send">➤</button>
       </div>
 
-      <!-- Composers & Attachments Tray -->
+      <!-- Tray: opens UNDER the message box when you press + -->
       <div id="composer-tray">
         <div id="action-buttons-wrapper">
           <div class="tray-item"><button class="input-action-btn" id="emoji-btn" type="button" title="Emoji">😊</button><span>Emoji</span></div>
@@ -326,17 +314,10 @@
 </div>
 
 <!-- Scripts -->
-<script>
-  if (location.protocol === 'file:') {
-    document.body.insertAdjacentHTML('afterbegin',
-      '<div style="position:fixed;inset:0;z-index:99999;background:#1a0d12;color:#fce4ec;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:sans-serif">' +
-      '<div><h2>Open this app through a web server</h2><p style="margin-top:12px;opacity:.8">Browsers block JavaScript modules on file:// pages.<br>Run <code>python -m http.server</code> in this folder and open <code>http://localhost:8000</code>.</p></div></div>');
-  }
-</script>
-<script src="js/debug-console.js"></script>
-<script src="paint-editor.js"></script>
-<script type="module" src="js/main.js"></script>  <!-- MOVED ABOVE AUTH -->
-<script type="module" src="js/auth.js"></script>  <!-- MOVED BELOW MAIN -->
-<script type="module" src="chat.js"></script>
+<script src="/js/debug-console.js?v=5.4"></script>
+<script src="/paint-editor.js?v=5.4"></script>
+<script type="module" src="/js/main.js?v=5.4"></script>
+<script type="module" src="/chat.js?v=5.4"></script>
+
 </body>
 </html>
