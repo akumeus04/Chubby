@@ -124,7 +124,7 @@ const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // DOM Elements
+// DOM Elements
     const loginView = document.getElementById('login-view');
     const chatView = document.getElementById('chat-view');
     const loginError = document.getElementById('login-error');
@@ -134,30 +134,37 @@ const app = initializeApp(firebaseConfig);
     let unsubscribe = null;
     let currentUser = null;
 
-// HELPER: Convert emojis to descriptive text tags to maintain terminal disguise
+    // Shared Dictionary of common emojis mapped to their discrete text names
+    const emojiMap = {
+      '😘': '[emoji-kiss]', '💋': '[emoji-kiss-mark]', '🥰': '[emoji-love]',
+      '😊': '[emoji-smile]', '🙂': '[emoji-smile]', '😂': '[emoji-laugh]', 
+      '🤣': '[emoji-rofl]', '😭': '[emoji-cry]', '😢': '[emoji-sad]', 
+      '😍': '[emoji-heart-eyes]', '❤️': '[emoji-heart]', '💔': '[emoji-broken-heart]',
+      '👍': '[emoji-thumbs-up]', '👎': '[emoji-thumbs-down]', '🙏': '[emoji-pray]',
+      '🌸': '[emoji-flower]', '👀': '[emoji-eyes]', '🔥': '[emoji-fire]', 
+      '✨': '[emoji-sparkle]', '😡': '[emoji-angry]', '🤔': '[emoji-thinking]', 
+      '🎉': '[emoji-party]', '🥺': '[emoji-pleading]', '😅': '[emoji-sweat-smile]', 
+      '💀': '[emoji-skull]', '💯': '[emoji-100]', '👋': '[emoji-wave]'
+    };
+
+    // Automatically generate the reverse dictionary for typing out emojis
+    const reverseEmojiMap = Object.fromEntries(
+      Object.entries(emojiMap).map(([emoji, text]) => [text, emoji])
+    );
+
+    // HELPER 1: Convert INCOMING emojis to descriptive text tags for the screen
     function sanitizeForTerminal(text) {
       if (!text) return '';
-      
-      // Dictionary of common emojis mapped to their discrete text names
-      const emojiMap = {
-        '😘': '[emoji-kiss]', '💋': '[emoji-kiss-mark]', '🥰': '[emoji-love]',
-        '😊': '[emoji-smile]', '🙂': '[emoji-smile]', '😂': '[emoji-laugh]', 
-        '🤣': '[emoji-rofl]', '😭': '[emoji-cry]', '😢': '[emoji-sad]', 
-        '😍': '[emoji-heart-eyes]', '❤️': '[emoji-heart]', '💔': '[emoji-broken-heart]',
-        '👍': '[emoji-thumbs-up]', '👎': '[emoji-thumbs-down]', '🙏': '[emoji-pray]',
-        '🌸': '[emoji-flower]', '👀': '[emoji-eyes]', '🔥': '[emoji-fire]', 
-        '✨': '[emoji-sparkle]', '😡': '[emoji-angry]', '🤔': '[emoji-thinking]', 
-        '🎉': '[emoji-party]', '🥺': '[emoji-pleading]', '😅': '[emoji-sweat-smile]', 
-        '💀': '[emoji-skull]', '💯': '[emoji-100]', '👋': '[emoji-wave]'
-      };
-
-      // 1. Replace known emojis from our dictionary with their specific text names
       let sanitized = text.replace(/./gu, char => emojiMap[char] || char);
-
-      // 2. Catch any remaining, unmapped emojis and replace them with a generic tag
       sanitized = sanitized.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '[emoji]');
-
       return sanitized;
+    }
+
+    // HELPER 2: Convert OUTGOING text tags back into real emojis for the database
+    function restoreEmojisForDatabase(text) {
+      if (!text) return '';
+      // Looks for any typed bracket tags and swaps them for the real emoji if found
+      return text.replace(/\[emoji-[a-z0-9-]+\]/g, match => reverseEmojiMap[match] || match);
     }
 
     // LOGIN
@@ -178,10 +185,13 @@ const app = initializeApp(firebaseConfig);
 
     // SEND MESSAGE
     const sendMessage = async () => {
-      const text = msgInput.value.trim();
+      let text = msgInput.value.trim();
       if (!text || !currentUser) return;
       
       msgInput.value = ''; 
+      
+      // Intercept the typed text and convert [emoji-name] tags back to real emojis
+      text = restoreEmojisForDatabase(text);
       
       try {
         await addDoc(collection(db, "messages"), {
