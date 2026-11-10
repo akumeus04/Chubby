@@ -103,7 +103,7 @@
     </div>
   </div>
 
-  <!-- FIREBASE MODULES -->
+<!-- FIREBASE MODULES -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -120,7 +120,7 @@
   appId: "1:541588910843:web:221fd00e69a4711624b65e"
 };
 
-    const app = initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
@@ -133,6 +133,26 @@
     
     let unsubscribe = null;
     let currentUser = null;
+
+    // HELPER: Convert emojis to text to maintain terminal disguise
+    function sanitizeForTerminal(text) {
+      if (!text) return '';
+      
+      const emoticons = {
+        '😊': ':-)', '🙂': ':-)', '😂': ':-D', '🤣': 'XD', 
+        '😭': 'T_T', '😢': ':\'(', '😍': '<3', '❤️': '<3', 
+        '👍': '[+1]', '👎': '[-1]', '🌸': '[flower]', '👀': '[looks]',
+        '🔥': '[fire]', '✨': '[sparkle]'
+      };
+
+      // 1. Replace known emojis with ASCII
+      let sanitized = text.replace(/./gu, char => emoticons[char] || char);
+
+      // 2. Replace any remaining colorful emojis with a generic tag
+      sanitized = sanitized.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '[emoji]');
+
+      return sanitized;
+    }
 
     // LOGIN
     document.getElementById('login-btn').addEventListener('click', () => {
@@ -155,7 +175,7 @@
       const text = msgInput.value.trim();
       if (!text || !currentUser) return;
       
-      msgInput.value = ''; // clear immediately
+      msgInput.value = ''; 
       
       try {
         await addDoc(collection(db, "messages"), {
@@ -181,20 +201,22 @@
       unsubscribe = onSnapshot(q, (snapshot) => {
         const msgs = [];
         snapshot.forEach((doc) => msgs.push(doc.data()));
-        msgs.reverse(); // oldest at top, newest at bottom
+        msgs.reverse(); 
 
         messagesDiv.innerHTML = '';
         msgs.forEach(msg => {
-          // Ignore purely media messages for this ultra-simple view
           if(!msg.text) return; 
 
           const time = msg.timestamp ? new Date(msg.timestamp.toMillis()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '...';
+          
+          // Apply the textifier here so it only affects this screen, not the database!
+          const sanitizedText = sanitizeForTerminal(msg.text);
           
           const div = document.createElement('div');
           div.className = 'msg';
           div.innerHTML = `
             <span class="msg-sender">${msg.senderName || 'Unknown'}</span>
-            <span class="msg-text">${msg.text}</span>
+            <span class="msg-text">${sanitizedText}</span>
             <span class="msg-time">[${time}]</span>
           `;
           messagesDiv.appendChild(div);
@@ -211,7 +233,7 @@
         document.getElementById('auth-user').innerText = user.email;
         loginView.style.display = 'none';
         chatView.style.display = 'flex';
-        document.getElementById('password').value = ''; // clear pass
+        document.getElementById('password').value = ''; 
         loadMessages();
       } else {
         currentUser = null;
