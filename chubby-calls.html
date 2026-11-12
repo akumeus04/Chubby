@@ -3,52 +3,60 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chubby Chat - WebRTC Demo</title>
+  <title>Chubby Chat - WebRTC Demo 2.0</title>
   <style>
-    body { font-family: sans-serif; background: #0e0f14; color: white; text-align: center; margin: 0; padding: 20px; }
-    input, button { padding: 10px; margin: 5px; border-radius: 5px; border: none; }
+    body { font-family: sans-serif; background: #0e0f14; color: white; text-align: center; margin: 0; padding: 15px; }
+    input, button { padding: 12px; margin: 5px; border-radius: 6px; border: none; font-size: 14px; }
     button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
     button:hover { background: #0056b3; }
     button:disabled { background: #555; cursor: not-allowed; }
-    .video-container { display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
-    video { background: #222; border-radius: 8px; width: 100%; max-width: 400px; height: auto; border: 2px solid #333; }
+    
+    /* 🌸 NEW: Diagnostic Status Box */
+    #statusBox { background: #222; border-left: 4px solid #f39c12; padding: 12px; margin: 15px auto; max-width: 500px; text-align: left; font-family: monospace; font-size: 13px; border-radius: 4px; color: #ddd; }
+    #statusBox span { display: block; margin-top: 4px; color: #f39c12; font-weight: bold;}
+    
+    /* 🌸 NEW: Picture-in-Picture Video Layout */
+    .video-wrapper { position: relative; max-width: 500px; margin: 20px auto; background: #111; border-radius: 12px; overflow: hidden; border: 1px solid #333; aspect-ratio: 3/4; display: flex; align-items: center; justify-content: center; }
+    .video-wrapper::before { content: "Partner Video Loading..."; position: absolute; color: #555; z-index: 0; }
+    
+    #remoteVideo { width: 100%; height: 100%; object-fit: cover; z-index: 1; position: relative; }
+    #localVideo { position: absolute; bottom: 15px; right: 15px; width: 120px; aspect-ratio: 3/4; object-fit: cover; border-radius: 8px; border: 2px solid white; z-index: 10; box-shadow: 0 4px 10px rgba(0,0,0,0.5); background: #000; }
+    
     #app-section { display: none; }
-    #callIdDisplay { background: #222; padding: 10px; border-radius: 5px; font-family: monospace; letter-spacing: 1px; color: #0f0; margin-bottom: 15px;}
   </style>
 </head>
 <body>
 
-  <h2>WebRTC Firebase Demo</h2>
+  <h2>Chubby Video Setup</h2>
 
   <!-- 1. LOGIN SECTION -->
   <div id="login-section">
     <input type="email" id="email" placeholder="Email">
     <input type="password" id="password" placeholder="Password">
     <button id="loginBtn">Login</button>
-    <p id="loginStatus"></p>
   </div>
 
-  <!-- 2. CALL INTERFACE (Hidden until logged in) -->
+  <!-- 2. CALL INTERFACE -->
   <div id="app-section">
-<div>
-      <!-- NEW: Input for custom Call ID -->
-      <input type="text" id="createCallIdInput" placeholder="Enter custom name (e.g., room1)">
-      <button id="startCallBtn">1. Start New Call</button>
-      <div id="callIdDisplay"></div>
-    </div>
     
-    <hr style="border-color:#333; margin: 20px 0;">
-    
-    <div>
-      <input type="text" id="callIdInput" placeholder="Paste Call ID here">
-      <button id="answerCallBtn">2. Answer Call</button>
+    <div id="statusBox">
+      System: Ready to connect...
+      <span id="liveStatus">Status: Idle</span>
     </div>
 
-    <div class="video-container">
-      <!-- Muted local video to prevent audio feedback loop -->
-      <video id="localVideo" autoplay playsinline muted></video>
-      <video id="remoteVideo" autoplay playsinline></video>
+    <div>
+      <input type="text" id="customRoomInput" placeholder="Room name (e.g. room1)">
+      <button id="startCallBtn">Start Call</button>
+      <button id="answerCallBtn">Answer Call</button>
     </div>
+
+    <div class="video-wrapper">
+      <!-- The main big screen for the partner (DO NOT MUTE THIS ONE) -->
+      <video id="remoteVideo" autoplay playsinline></video>
+      <!-- The small picture-in-picture for yourself (MUST BE MUTED) -->
+      <video id="localVideo" autoplay playsinline muted></video>
+    </div>
+
   </div>
 
   <script type="module">
@@ -56,7 +64,7 @@
     import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // ─── YOUR FIREBASE CONFIG ──────────────────────────────────────────────
+    // ─── 1. YOUR FIREBASE CONFIG ───────────────────────────────────────────
     const firebaseConfig = {
   apiKey: "AIzaSyA3iIqEl718iLfHKfn9S0d_60PAN4BtcS0",
   authDomain: "ourmessenger-76636.firebaseapp.com",
@@ -71,7 +79,7 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // ─── WEBRTC CONFIG (Free Google STUN Servers) ──────────────────────────
+    // ─── 2. WEBRTC ENGINE ──────────────────────────────────────────────────
     const servers = {
       iceServers: [
         { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
@@ -80,141 +88,121 @@
     };
 
     const pc = new RTCPeerConnection(servers);
-    let localStream = null;
-    let remoteStream = null;
-
-    // ─── UI ELEMENTS ───────────────────────────────────────────────────────
+    
     const localVideo = document.getElementById('localVideo');
     const remoteVideo = document.getElementById('remoteVideo');
-    const startCallBtn = document.getElementById('startCallBtn');
-    const answerCallBtn = document.getElementById('answerCallBtn');
-    const callIdInput = document.getElementById('callIdInput');
-    const callIdDisplay = document.getElementById('callIdDisplay');
+    const liveStatus = document.getElementById('liveStatus');
 
-    // ─── AUTHENTICATION ────────────────────────────────────────────────────
+    // Live Logger Helper
+    function updateStatus(msg, color = "#f39c12") {
+      liveStatus.innerText = "Status: " + msg;
+      liveStatus.style.color = color;
+      console.log("[WebRTC]:", msg);
+    }
+
+    // Monitor Network Connection
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'connecting') updateStatus("Connecting through network...", "#3498db");
+      if (pc.connectionState === 'connected') updateStatus("✅ Connected! Live Video & Audio active.", "#2ecc71");
+      if (pc.connectionState === 'disconnected') updateStatus("⚠️ Partner disconnected.", "#e74c3c");
+      if (pc.connectionState === 'failed') updateStatus("❌ Connection Failed! (Firewall blocked the stream)", "#e74c3c");
+    };
+
+    // ─── 3. AUTHENTICATION ─────────────────────────────────────────────────
     document.getElementById('loginBtn').onclick = async () => {
-      const email = document.getElementById('email').value;
-      const pass = document.getElementById('password').value;
       try {
-        await signInWithEmailAndPassword(auth, email, pass);
+        updateStatus("Logging in...", "#aaa");
+        await signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value);
         document.getElementById('login-section').style.display = 'none';
         document.getElementById('app-section').style.display = 'block';
-        await setupMediaSources();
+        updateStatus("Logged in. Requesting camera access...", "#aaa");
+        await setupHardware();
       } catch (e) {
-        document.getElementById('loginStatus').innerText = "Login Failed: " + e.message;
+        updateStatus("Login Failed: " + e.message, "red");
       }
     };
 
-    // ─── HARDWARE SETUP ────────────────────────────────────────────────────
-    async function setupMediaSources() {
-      // Request Audio and Video permissions
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      remoteStream = new MediaStream();
+    // ─── 4. HARDWARE SETUP ─────────────────────────────────────────────────
+    async function setupHardware() {
+      try {
+        // Request camera and microphone explicitly
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        
+        // Show your own face in the small box
+        localVideo.srcObject = stream;
+        
+        // Feed your camera/mic into the network connection
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-      // Push local tracks to the WebRTC Peer Connection
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-      // Show local video on screen
-      localVideo.srcObject = localStream;
-      
-      // When remote tracks arrive, attach them to the remote video element
-      pc.ontrack = event => {
-        event.streams[0].getTracks().forEach(track => remoteStream.addTrack(track));
-      };
-      remoteVideo.srcObject = remoteStream;
+        // When the partner's data arrives, push it directly to the big screen
+        pc.ontrack = (event) => {
+          updateStatus("Receiving partner's video and audio...", "#3498db");
+          remoteVideo.srcObject = event.streams[0];
+        };
+        
+        updateStatus("Hardware ready. Enter room name and Start/Answer.");
+      } catch (err) {
+        updateStatus("Hardware Error: Could not access Camera/Mic.", "red");
+        alert("Please ensure browser permissions for Camera and Microphone are allowed!");
+      }
     }
 
-// ─── CALLER LOGIC (Create Offer) ───────────────────────────────────────
-    startCallBtn.onclick = async () => {
-      // 1. Get the custom ID from the input box
-      const customId = document.getElementById('createCallIdInput').value.trim();
-      if (!customId) return alert("Please type a custom room name first!");
+    // ─── 5. CALLER LOGIC (Start Call) ──────────────────────────────────────
+    document.getElementById('startCallBtn').onclick = async () => {
+      const roomId = document.getElementById('customRoomInput').value.trim();
+      if (!roomId) return alert("Type a room name first!");
       
-      startCallBtn.disabled = true;
-
-      // 2. Create the document using YOUR custom ID instead of a random one
-      const callDoc = doc(db, 'calls', customId); 
+      updateStatus("Creating room: " + roomId + "...");
+      const callDoc = doc(db, 'calls', roomId);
       const offerCandidates = collection(callDoc, 'offerCandidates');
       const answerCandidates = collection(callDoc, 'answerCandidates');
 
-      callIdDisplay.innerText = "Tell partner to answer: " + customId;
+      pc.onicecandidate = e => { if (e.candidate) addDoc(offerCandidates, e.candidate.toJSON()); };
 
-      // 3. Get local ICE candidates and push them to Firestore
-      pc.onicecandidate = event => {
-        if (event.candidate) {
-          addDoc(offerCandidates, event.candidate.toJSON());
-        }
-      };
+      const offerDesc = await pc.createOffer();
+      await pc.setLocalDescription(offerDesc);
+      await setDoc(callDoc, { offer: { sdp: offerDesc.sdp, type: offerDesc.type } });
 
-      // 4. Create the WebRTC Offer
-      const offerDescription = await pc.createOffer();
-      await pc.setLocalDescription(offerDescription);
+      updateStatus("⏳ Room created! Waiting for partner to answer...", "#f39c12");
 
-      const offer = {
-        sdp: offerDescription.sdp,
-        type: offerDescription.type,
-      };
-      await setDoc(callDoc, { offer });
-
-      // 5. Listen for the remote Answer from the partner
       onSnapshot(callDoc, (snapshot) => {
         const data = snapshot.data();
         if (!pc.currentRemoteDescription && data?.answer) {
-          const answerDescription = new RTCSessionDescription(data.answer);
-          pc.setRemoteDescription(answerDescription);
+          updateStatus("Partner found! Finalizing connection...");
+          pc.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
       });
 
-      // 6. Listen for remote ICE candidates
       onSnapshot(answerCandidates, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const candidate = new RTCIceCandidate(change.doc.data());
-            pc.addIceCandidate(candidate);
-          }
+          if (change.type === 'added') pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
         });
       });
     };
 
-    // ─── CALLEE LOGIC (Answer Offer) ───────────────────────────────────────
-    answerCallBtn.onclick = async () => {
-      const callId = callIdInput.value.trim();
-      if (!callId) return alert("Please enter a Call ID");
-      answerCallBtn.disabled = true;
+    // ─── 6. CALLEE LOGIC (Answer Call) ─────────────────────────────────────
+    document.getElementById('answerCallBtn').onclick = async () => {
+      const roomId = document.getElementById('customRoomInput').value.trim();
+      if (!roomId) return alert("Type the room name first!");
 
-      const callDoc = doc(db, 'calls', callId);
+      updateStatus("Joining room: " + roomId + "...");
+      const callDoc = doc(db, 'calls', roomId);
       const offerCandidates = collection(callDoc, 'offerCandidates');
       const answerCandidates = collection(callDoc, 'answerCandidates');
 
-      // 1. Get local ICE candidates and push them to Firestore
-      pc.onicecandidate = event => {
-        if (event.candidate) {
-          addDoc(answerCandidates, event.candidate.toJSON());
-        }
-      };
+      pc.onicecandidate = e => { if (e.candidate) addDoc(answerCandidates, e.candidate.toJSON()); };
 
-      // 2. Read the Caller's offer
       const callData = (await getDoc(callDoc)).data();
-      const offerDescription = callData.offer;
-      await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+      if (!callData) return updateStatus("❌ Room not found! Did they start the call?", "red");
 
-      // 3. Create the WebRTC Answer
-      const answerDescription = await pc.createAnswer();
-      await pc.setLocalDescription(answerDescription);
+      await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+      const answerDesc = await pc.createAnswer();
+      await pc.setLocalDescription(answerDesc);
+      await setDoc(callDoc, { answer: { sdp: answerDesc.sdp, type: answerDesc.type } }, { merge: true });
 
-      const answer = {
-        type: answerDescription.type,
-        sdp: answerDescription.sdp,
-      };
-      await setDoc(callDoc, { answer }, { merge: true });
-
-      // 4. Listen for remote ICE candidates
       onSnapshot(offerCandidates, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            const candidate = new RTCIceCandidate(change.doc.data());
-            pc.addIceCandidate(candidate);
-          }
+          if (change.type === 'added') pc.addIceCandidate(new RTCIceCandidate(change.doc.data()));
         });
       });
     };
