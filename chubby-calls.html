@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chubby Chat - WebRTC Demo</title>
+  <style>
+    body { font-family: sans-serif; background: #0e0f14; color: white; text-align: center; margin: 0; padding: 20px; }
+    input, button { padding: 10px; margin: 5px; border-radius: 5px; border: none; }
+    button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
+    button:hover { background: #0056b3; }
+    button:disabled { background: #555; cursor: not-allowed; }
+    .video-container { display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    video { background: #222; border-radius: 8px; width: 100%; max-width: 400px; height: auto; border: 2px solid #333; }
+    #app-section { display: none; }
+    #callIdDisplay { background: #222; padding: 10px; border-radius: 5px; font-family: monospace; letter-spacing: 1px; color: #0f0; margin-bottom: 15px;}
+  </style>
+</head>
+<body>
+
+  <h2>WebRTC Firebase Demo</h2>
+
+  <!-- 1. LOGIN SECTION -->
+  <div id="login-section">
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button id="loginBtn">Login</button>
+    <p id="loginStatus"></p>
+  </div>
+
+  <!-- 2. CALL INTERFACE (Hidden until logged in) -->
+  <div id="app-section">
+    <div>
+      <button id="startCallBtn">1. Start New Call</button>
+      <div id="callIdDisplay">Call ID will appear here...</div>
+    </div>
+    
+    <hr style="border-color:#333; margin: 20px 0;">
+    
+    <div>
+      <input type="text" id="callIdInput" placeholder="Paste Call ID here">
+      <button id="answerCallBtn">2. Answer Call</button>
+    </div>
+
+    <div class="video-container">
+      <!-- Muted local video to prevent audio feedback loop -->
+      <video id="localVideo" autoplay playsinline muted></video>
+      <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // ─── YOUR FIREBASE CONFIG ──────────────────────────────────────────────
+    const firebaseConfig = {
+  apiKey: "AIzaSyA3iIqEl718iLfHKfn9S0d_60PAN4BtcS0",
+  authDomain: "ourmessenger-76636.firebaseapp.com",
+  databaseURL: "https://ourmessenger-76636-default-rtdb.firebaseio.com",
+  projectId: "ourmessenger-76636",
+  storageBucket: "ourmessenger-76636.firebasestorage.app",
+  messagingSenderId: "541588910843",
+  appId: "1:541588910843:web:221fd00e69a4711624b65e"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // ─── WEBRTC CONFIG (Free Google STUN Servers) ──────────────────────────
+    const servers = {
+      iceServers: [
+        { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
+      ],
+      iceCandidatePoolSize: 10
+    };
+
+    const pc = new RTCPeerConnection(servers);
+    let localStream = null;
+    let remoteStream = null;
+
+    // ─── UI ELEMENTS ───────────────────────────────────────────────────────
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const startCallBtn = document.getElementById('startCallBtn');
+    const answerCallBtn = document.getElementById('answerCallBtn');
+    const callIdInput = document.getElementById('callIdInput');
+    const callIdDisplay = document.getElementById('callIdDisplay');
+
+    // ─── AUTHENTICATION ────────────────────────────────────────────────────
+    document.getElementById('loginBtn').onclick = async () => {
+      const email = document.getElementById('email').value;
+      const pass = document.getElementById('password').value;
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('app-section').style.display = 'block';
+        await setupMediaSources();
+      } catch (e) {
+        document.getElementById('loginStatus').innerText = "Login Failed: " + e.message;
+      }
+    };
+
+    // ─── HARDWARE SETUP ────────────────────────────────────────────────────
+    async function setupMediaSources() {
+      // Request Audio and Video permissions
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      remoteStream = new MediaStream();
+
+      // Push local tracks to the WebRTC Peer Connection
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+      // Show local video on screen
+      localVideo.srcObject = localStream;
+      
+      // When remote tracks arrive, attach them to the remote video element
+      pc.ontrack = event => {
+        event.streams[0].getTracks().forEach(track => remoteStream.addTrack(track));
+      };
+      remoteVideo.srcObject = remoteStream;
+    }
+
+    // ─── CALLER LOGIC (Create Offer) ───────────────────────────────────────
+    startCallBtn.onclick = async () => {
+      startCallBtn.disabled = true;
+
+      // 1. Create a new document in the 'calls' collection
+      const callDoc = doc(collection(db, 'calls'));
+      const offerCandidates = collection(callDoc, 'offerCandidates');
+      const answerCandidates = collection(callDoc, 'answerCandidates');
+
+      callIdDisplay.innerText = "Share this Call ID: " + callDoc.id;
+
+      // 2. Get local ICE candidates and push them to Firestore
+      pc.onicecandidate = event => {
+        if (event.candidate) {
+          addDoc(offerCandidates, event.candidate.toJSON());
+        }
+      };
+
+      // 3. Create the WebRTC Offer
+      const offerDescription = await pc.createOffer();
+      await pc.setLocalDescription(offerDescription);
+
+      const offer = {
+        sdp: offerDescription.sdp,
+        type: offerDescription.type,
+      };
+      await setDoc(callDoc, { offer });
+
+      // 4. Listen for the remote Answer from the partner
+      onSnapshot(callDoc, (snapshot) => {
+        const data = snapshot.data();
+        if (!pc.currentRemoteDescription && data?.answer) {
+          const answerDescription = new RTCSessionDescription(data.answer);
+          pc.setRemoteDescription(answerDescription);
+        }
+      });
+
+      // 5. Listen for remote ICE candidates
+      onSnapshot(answerCandidates, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const candidate = new RTCIceCandidate(change.doc.data());
+            pc.addIceCandidate(candidate);
+          }
+        });
+      });
+    };
+
+    // ─── CALLEE LOGIC (Answer Offer) ───────────────────────────────────────
+    answerCallBtn.onclick = async () => {
+      const callId = callIdInput.value.trim();
+      if (!callId) return alert("Please enter a Call ID");
+      answerCallBtn.disabled = true;
+
+      const callDoc = doc(db, 'calls', callId);
+      const offerCandidates = collection(callDoc, 'offerCandidates');
+      const answerCandidates = collection(callDoc, 'answerCandidates');
+
+      // 1. Get local ICE candidates and push them to Firestore
+      pc.onicecandidate = event => {
+        if (event.candidate) {
+          addDoc(answerCandidates, event.candidate.toJSON());
+        }
+      };
+
+      // 2. Read the Caller's offer
+      const callData = (await getDoc(callDoc)).data();
+      const offerDescription = callData.offer;
+      await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+
+      // 3. Create the WebRTC Answer
+      const answerDescription = await pc.createAnswer();
+      await pc.setLocalDescription(answerDescription);
+
+      const answer = {
+        type: answerDescription.type,
+        sdp: answerDescription.sdp,
+      };
+      await setDoc(callDoc, { answer }, { merge: true });
+
+      // 4. Listen for remote ICE candidates
+      onSnapshot(offerCandidates, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const candidate = new RTCIceCandidate(change.doc.data());
+            pc.addIceCandidate(candidate);
+          }
+        });
+      });
+    };
+  </script>
+</body>
+</html>
