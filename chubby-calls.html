@@ -30,9 +30,11 @@
 
   <!-- 2. CALL INTERFACE (Hidden until logged in) -->
   <div id="app-section">
-    <div>
+<div>
+      <!-- NEW: Input for custom Call ID -->
+      <input type="text" id="createCallIdInput" placeholder="Enter custom name (e.g., room1)">
       <button id="startCallBtn">1. Start New Call</button>
-      <div id="callIdDisplay">Call ID will appear here...</div>
+      <div id="callIdDisplay"></div>
     </div>
     
     <hr style="border-color:#333; margin: 20px 0;">
@@ -122,25 +124,29 @@
       remoteVideo.srcObject = remoteStream;
     }
 
-    // ─── CALLER LOGIC (Create Offer) ───────────────────────────────────────
+// ─── CALLER LOGIC (Create Offer) ───────────────────────────────────────
     startCallBtn.onclick = async () => {
+      // 1. Get the custom ID from the input box
+      const customId = document.getElementById('createCallIdInput').value.trim();
+      if (!customId) return alert("Please type a custom room name first!");
+      
       startCallBtn.disabled = true;
 
-      // 1. Create a new document in the 'calls' collection
-      const callDoc = doc(collection(db, 'calls'));
+      // 2. Create the document using YOUR custom ID instead of a random one
+      const callDoc = doc(db, 'calls', customId); 
       const offerCandidates = collection(callDoc, 'offerCandidates');
       const answerCandidates = collection(callDoc, 'answerCandidates');
 
-      callIdDisplay.innerText = "Share this Call ID: " + callDoc.id;
+      callIdDisplay.innerText = "Tell partner to answer: " + customId;
 
-      // 2. Get local ICE candidates and push them to Firestore
+      // 3. Get local ICE candidates and push them to Firestore
       pc.onicecandidate = event => {
         if (event.candidate) {
           addDoc(offerCandidates, event.candidate.toJSON());
         }
       };
 
-      // 3. Create the WebRTC Offer
+      // 4. Create the WebRTC Offer
       const offerDescription = await pc.createOffer();
       await pc.setLocalDescription(offerDescription);
 
@@ -150,7 +156,7 @@
       };
       await setDoc(callDoc, { offer });
 
-      // 4. Listen for the remote Answer from the partner
+      // 5. Listen for the remote Answer from the partner
       onSnapshot(callDoc, (snapshot) => {
         const data = snapshot.data();
         if (!pc.currentRemoteDescription && data?.answer) {
@@ -159,7 +165,7 @@
         }
       });
 
-      // 5. Listen for remote ICE candidates
+      // 6. Listen for remote ICE candidates
       onSnapshot(answerCandidates, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
